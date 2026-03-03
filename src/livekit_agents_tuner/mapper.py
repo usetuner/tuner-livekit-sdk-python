@@ -7,12 +7,60 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .collector import SessionState
-    from .config import TunerConfig
+    from .config import TimingStrategy, TunerConfig
 
 logger = logging.getLogger("livekit_agents_tuner.mapper")
 
 
-def map_history_to_segments(items: list[Any]) -> list[dict]:
+def _apply_timing(
+    seg: dict,
+    current: Any,
+    next_msg: Any,
+    strategy: "TimingStrategy",
+) -> None:
+    """
+    Apply a timing strategy to a user/agent segment in-place.
+
+    Built-in strategies:
+      "word_count" — estimate duration_ms = word_count * 250 ms, end_ms = start_ms + duration_ms
+
+    Custom strategy (callable):
+      def my_strategy(current: ChatMessage, next_msg: ChatMessage | None) -> tuple[int | None, int | None]:
+          # return (end_ms, duration_ms); use None to leave a field unset
+          ...
+    """
+    from .config import MS_PER_WORD, TIMING_WORD_COUNT
+
+    if strategy == TIMING_WORD_COUNT:
+        text = seg.get("text", "")
+        word_count = len(text.split()) if text.strip() else 0
+        if word_count > 0:
+            duration_ms = word_count * MS_PER_WORD
+            seg["duration_ms"] = duration_ms
+            seg["end_ms"] = seg["start_ms"] + duration_ms
+        return
+
+    if callable(strategy):
+        try:
+            end_ms, duration_ms = strategy(current, next_msg)
+            if end_ms is not None:
+                seg["end_ms"] = end_ms
+            if duration_ms is not None:
+                seg["duration_ms"] = duration_ms
+        except Exception:
+            logger.warning(
+                "Custom timing_strategy raised an error; timing fields left unset",
+                exc_info=True,
+            )
+        return
+
+    logger.warning("Unknown timing_strategy %r; timing fields left unset", strategy)
+
+
+def map_history_to_segments(
+    items: list[Any],
+    timing_strategy: "TimingStrategy" = "none",
+) -> list[dict]:
     """
     Map LiveKit ChatContext items to Tuner PublicTranscriptSegment dicts.
 
@@ -29,6 +77,8 @@ def map_history_to_segments(items: list[Any]) -> list[dict]:
     )
 
     segments: list[dict] = []
+    # Track (segment_index, source ChatMessage) for timing post-processing
+    timed: list[tuple[int, Any]] = []
 
     for item in items:
         if isinstance(item, ChatMessage):
@@ -39,22 +89,23 @@ def map_history_to_segments(items: list[Any]) -> list[dict]:
             text = item.text_content or ""
             start_ms = int(item.created_at * 1000)
 
-            segments.append(
-                {
-                    "role": role,
-                    "text": text,
-                    "start_ms": start_ms,
-                    # end_ms and duration_ms are not available from LiveKit's ChatMessage.
-                    # LiveKit only exposes created_at (when the message was committed),
-                    # not per-segment speech start/end times.
-                    # "end_ms": ...,
-                    # "duration_ms": ...,
-                    "metadata": {
-                        "id": item.id,
-                        "interrupted": item.interrupted,
-                    },
-                }
-            )
+            seg: dict = {
+                "role": role,
+                "text": text,
+                "start_ms": start_ms,
+                # end_ms and duration_ms are not available from LiveKit's ChatMessage.
+                # LiveKit only exposes created_at (when the message was committed),
+                # not per-segment speech start/end times.
+                # Populate them by passing timing_strategy= to map_history_to_segments.
+                # "end_ms": ...,
+                # "duration_ms": ...,
+                "metadata": {
+                    "id": item.id,
+                    "interrupted": item.interrupted,
+                },
+            }
+            timed.append((len(segments), item))
+            segments.append(seg)
 
         elif isinstance(item, FunctionCall):
             try:
@@ -106,6 +157,11 @@ def map_history_to_segments(items: list[Any]) -> list[dict]:
                         },
                     }
                 )
+
+    # Post-processing: apply timing strategy to user/agent message segments
+    for i, (seg_idx, current_msg) in enumerate(timed):
+        next_msg = timed[i + 1][1] if i + 1 < len(timed) else None
+        _apply_timing(segments[seg_idx], current_msg, next_msg, timing_strategy)
 
     return segments
 
@@ -164,7 +220,7 @@ def to_create_call_request(
         except Exception:
             logger.debug("Could not inspect room participants for call_type detection")
 
-    segments = map_history_to_segments(history_items)
+    segments = map_history_to_segments(history_items, config.timing_strategy)
     plain_transcript = build_plain_transcript(history_items)
 
     # --- Usage summary for metadata ---

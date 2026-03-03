@@ -88,7 +88,8 @@ async def my_agent(ctx: JobContext):
     TunerPlugin(                                                                                                                                                                                                                                                                  
       session,                                                                                                                                                                                                                                                                
       ctx,
-      agent_id="ca57706c-060a-4d49-a577-e9b6dd9243d3"
+      agent_id="ca57706c-060a-4d49-a577-e9b6dd9243d3",
+      cost_calculator=10,  # Example cost function in cents define callable that calculates cost based on usage summary: (UsageSummary) -> float (USD)
   )
 
     # To use a realtime model instead of a voice pipeline, use the following session setup instead.

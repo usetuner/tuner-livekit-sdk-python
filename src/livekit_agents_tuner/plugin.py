@@ -6,13 +6,37 @@ from typing import TYPE_CHECKING, Callable
 
 from .client import submit_call
 from .collector import SessionState
-from .config import TunerConfig
+from .config import TIMING_WORD_COUNT, TimingStrategy, TunerConfig
 from .mapper import to_create_call_request
 
 if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
 
 logger = logging.getLogger("livekit_agents_tuner")
+
+_RECORDING_URL_PLACEHOLDER = "pending"
+
+
+async def _default_recording_url_resolver(room_name: str, job_id: str) -> str:
+    """
+    Default resolver used when no recording_url_resolver is provided.
+
+    Returns a placeholder value so the Tuner API call succeeds.
+    Replace this by passing recording_url_resolver= to TunerPlugin with logic
+    that returns the real publicly accessible recording URL for your setup.
+
+    Example (Egress → S3):
+        async def my_resolver(room_name: str, job_id: str) -> str:
+            return f"https://my-bucket.s3.amazonaws.com/recordings/{job_id}.ogg"
+
+        TunerPlugin(session, ctx, recording_url_resolver=my_resolver)
+    """
+    logger.warning(
+        "No recording_url_resolver provided; submitting recording_url='%s'. "
+        "Pass recording_url_resolver= to TunerPlugin to supply the real URL.",
+        _RECORDING_URL_PLACEHOLDER,
+    )
+    return _RECORDING_URL_PLACEHOLDER
 
 
 class TunerPlugin:
@@ -64,6 +88,7 @@ class TunerPlugin:
         enabled: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
+        timing_strategy: "TimingStrategy" = TIMING_WORD_COUNT,
     ) -> None:
         self._session = session
         self._ctx = ctx
@@ -87,6 +112,7 @@ class TunerPlugin:
                 enabled=enabled,
                 timeout_seconds=timeout_seconds,
                 max_retries=max_retries,
+                timing_strategy=timing_strategy,
             )
         except ValueError as exc:
             logger.error(
@@ -141,18 +167,21 @@ class TunerPlugin:
 
         self._state.finalize(reason)
 
-        # Optionally resolve recording URL
-        recording_url: str | None = None
-        if self._config.recording_url_resolver is not None:
-            try:
-                recording_url = await self._config.recording_url_resolver(
-                    self._ctx.room.name, str(self._ctx.job.id)
-                )
-            except Exception:
-                logger.warning(
-                    "recording_url_resolver raised an error; omitting recording_url",
-                    exc_info=True,
-                )
+        # Resolve recording URL — always required by Tuner.
+        # Falls back to _default_recording_url_resolver which returns a placeholder
+        # if the developer has not provided their own resolver.
+        resolver = self._config.recording_url_resolver or _default_recording_url_resolver
+        try:
+            recording_url = await resolver(self._ctx.room.name, str(self._ctx.job.id))
+        except Exception:
+            logger.warning(
+                "recording_url_resolver raised an error; falling back to placeholder",
+                exc_info=True,
+            )
+            recording_url = _RECORDING_URL_PLACEHOLDER
+
+        if not recording_url:
+            recording_url = _RECORDING_URL_PLACEHOLDER
 
         # Snapshot conversation history at shutdown
         history_items = list(self._session.history.items)
@@ -169,8 +198,7 @@ class TunerPlugin:
             logger.exception("Failed to build Tuner payload; skipping submission")
             return
 
-        if recording_url:
-            payload["recording_url"] = recording_url
+        payload["recording_url"] = recording_url
 
         # Submit with timeout guard
         try:

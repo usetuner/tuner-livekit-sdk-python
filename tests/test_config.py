@@ -9,6 +9,7 @@ def test_from_env_reads_env_vars(monkeypatch):
     monkeypatch.setenv("TUNER_API_KEY", "tr_api_test123")
     monkeypatch.setenv("TUNER_WORKSPACE_ID", "42")
     monkeypatch.setenv("TUNER_AGENT_ID", "my-agent")
+    monkeypatch.delenv("TUNER_BASE_URL", raising=False)
 
     config = TunerConfig.from_env()
 

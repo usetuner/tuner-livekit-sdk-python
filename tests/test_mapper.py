@@ -184,3 +184,62 @@ def test_plain_transcript_skips_empty_text():
     msg = ChatMessage(role="user", content=[])
     transcript = build_plain_transcript([msg])
     assert transcript == ""
+
+
+# ---------------------------------------------------------------------------
+# timing_strategy
+# ---------------------------------------------------------------------------
+
+
+def test_timing_word_count_sets_duration_and_end():
+    # "Hello world" = 2 words * 250 ms = 500 ms
+    msg = user_msg("Hello world", created_at=1_000.0)
+    segments = map_history_to_segments([msg], timing_strategy="word_count")
+    assert segments[0]["duration_ms"] == 500
+    assert segments[0]["end_ms"] == 1_000_000 + 500
+
+
+def test_timing_word_count_multi_word():
+    # "one two three four" = 4 words * 250 ms = 1000 ms
+    msg = agent_msg("one two three four", created_at=2_000.0)
+    segments = map_history_to_segments([msg], timing_strategy="word_count")
+    assert segments[0]["duration_ms"] == 1_000
+    assert segments[0]["end_ms"] == 2_000_000 + 1_000
+
+
+def test_timing_word_count_empty_text_leaves_fields_unset():
+    msg = ChatMessage(role="user", content=[])
+    segments = map_history_to_segments([msg], timing_strategy="word_count")
+    assert "end_ms" not in segments[0]
+    assert "duration_ms" not in segments[0]
+
+
+def test_timing_custom_callable():
+    def my_strategy(current, next_msg):
+        return (9999, 1234)
+
+    items = [user_msg("Hello", created_at=1_000.0)]
+    segments = map_history_to_segments(items, timing_strategy=my_strategy)
+    assert segments[0]["end_ms"] == 9999
+    assert segments[0]["duration_ms"] == 1234
+
+
+def test_timing_custom_callable_returns_none_leaves_fields_unset():
+    def my_strategy(current, next_msg):
+        return (None, None)
+
+    items = [user_msg("Hello", created_at=1_000.0)]
+    segments = map_history_to_segments(items, timing_strategy=my_strategy)
+    assert "end_ms" not in segments[0]
+    assert "duration_ms" not in segments[0]
+
+
+def test_timing_custom_callable_error_is_swallowed():
+    def bad_strategy(current, next_msg):
+        raise RuntimeError("oops")
+
+    items = [user_msg("Hello", created_at=1_000.0)]
+    # Should not raise; fields left unset
+    segments = map_history_to_segments(items, timing_strategy=bad_strategy)
+    assert "end_ms" not in segments[0]
+    assert "duration_ms" not in segments[0]
