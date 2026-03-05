@@ -136,7 +136,7 @@ def map_history_to_segments(
                     and seg["tool"]["request_id"] == item.call_id
                     and seg["tool"]["result"] is None
                 ):
-                    seg["tool"]["result"] = item.output
+                    seg["tool"]["result"] = {"message": item.output}
                     seg["tool"]["is_error"] = item.is_error
                     if item.is_error:
                         seg["tool"]["error"] = item.output
@@ -151,7 +151,7 @@ def map_history_to_segments(
                         "tool": {
                             "name": item.name,
                             "request_id": item.call_id,
-                            "result": item.output,
+                            "result": {"message": item.output},
                             "is_error": item.is_error,
                             "error": item.output if item.is_error else None,
                         },
