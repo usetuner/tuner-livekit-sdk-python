@@ -83,7 +83,7 @@ class TunerPlugin:
         base_url: str | None = None,
         call_type: str | None = None,
         recording_url_resolver: Callable | None = None,
-        cost_calculator: Callable | None = None,
+        cost_calculator: Callable[[any], int] | None = None,
         extra_metadata: dict | None = None,
         enabled: bool = True,
         timeout_seconds: float = 30.0,

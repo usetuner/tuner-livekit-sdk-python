@@ -267,13 +267,4 @@ def to_create_call_request(
     if state.close_error is not None:
         payload["call_successful"] = False
 
-    # Cost calculation via optional callback
-    if config.cost_calculator is not None:
-        try:
-            payload["call_cost"] = float(config.cost_calculator(usage))
-        except Exception:
-            logger.warning(
-                "cost_calculator raised an error; omitting call_cost", exc_info=True
-            )
-
     return payload

@@ -1,5 +1,9 @@
 import logging
 
+import os
+from soundflare import LivekitObserve
+from livekit.agents import AgentSession
+
 from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import (
@@ -8,7 +12,9 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     JobProcess,
+    RunContext,
     cli,
+    function_tool,
     inference,
     room_io,
 )
@@ -27,22 +33,57 @@ class Assistant(Agent):
             instructions="""You are a helpful resturant receptionist who receive calls for booking tables, you should ask for number of guests, date and time. be nice and professional and asnwer any question related to booking by the customer.""",
         )
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    async def check_table_availability(
+        self,
+        context: RunContext,
+        date: str,
+        time: str,
+        guests: int,
+    ) -> str:
+        """Check if the restaurant can accept a booking for the requested date/time and guest count.
+
+        Args:
+            date: Reservation date in YYYY-MM-DD format.
+            time: Reservation time in HH:MM format.
+            guests: Number of guests.
+        """
+        logger.info(
+            "Checking availability",
+            extra={"date": date, "time": time, "guests": guests},
+        )
+
+        if guests <= 0:
+            return "Invalid guest count. Please provide a number greater than 0."
+        if guests > 8:
+            return "For parties larger than 8, please contact our events team."
+
+        return f"Table is available on {date} at {time} for {guests} guests."
+
+    @function_tool
+    async def create_booking_summary(
+        self,
+        context: RunContext,
+        customer_name: str,
+        date: str,
+        time: str,
+        guests: int,
+    ) -> str:
+        """Create a booking confirmation summary.
+
+        Args:
+            customer_name: Guest full name.
+            date: Reservation date in YYYY-MM-DD format.
+            time: Reservation time in HH:MM format.
+            guests: Number of guests.
+        """
+        return (
+            "Booking summary:\n"
+            f"- Name: {customer_name}\n"
+            f"- Date: {date}\n"
+            f"- Time: {time}\n"
+            f"- Guests: {guests}"
+        )
 
 
 server = AgentServer()
@@ -53,6 +94,11 @@ def prewarm(proc: JobProcess):
 
 
 server.setup_fnc = prewarm
+
+soundflare = LivekitObserve(
+    agent_id="60ffcbb4-1c12-47c5-9849-de2e6a6990e1",
+    apikey="soundflare_c7ab3d6be7ee1299587806d113755181d762bc44ed943f087b305be42291f1b0" # Generate this in the SoundFlare Dashboard
+)
 
 
 @server.rtc_session(agent_name="my-agent")
@@ -85,12 +131,22 @@ async def my_agent(ctx: JobContext):
         preemptive_generation=True,
     )
 
-    TunerPlugin(                                                                                                                                                                                                                                                                  
-      session,                                                                                                                                                                                                                                                                
-      ctx,
-      agent_id="ca57706c-060a-4d49-a577-e9b6dd9243d3",
-      cost_calculator=10,  # Example cost function in cents define callable that calculates cost based on usage summary: (UsageSummary) -> float (USD)
-  )
+#     TunerPlugin(                                                                                                                                                                                                                                                                  
+#       session,                                                                                                                                                                                                                                                                
+#       ctx,
+#       agent_id="ca57706c-060a-4d49-a577-e9b6dd9243d3",
+#       cost_calculator=lambda usage: 2,  # Example cost function (USD)
+#   )
+
+
+    session_id = soundflare.start_session(session=session)
+    
+    # Export data on shutdown
+    async def on_shutdown():
+        await soundflare.export(session_id)
+    ctx.add_shutdown_callback(on_shutdown)
+    
+    # await session.start(...)
 
     # To use a realtime model instead of a voice pipeline, use the following session setup instead.
     # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
@@ -110,9 +166,12 @@ async def my_agent(ctx: JobContext):
     # # Start the avatar and wait for it to join
     # await avatar.start(session, room=ctx.room)
 
+    # Create the assistant with configured function tools.
+    assistant = Assistant()
+
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
