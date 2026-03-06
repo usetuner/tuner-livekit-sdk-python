@@ -31,7 +31,6 @@ def map_history_to_segments(
       - user          → ChatMessage(role="user")
       - agent         → ChatMessage(role="assistant")
       - agent_function → FunctionCall (merged with FunctionCallOutput)
-      - agent_result  → FunctionCallOutput with no matching FunctionCall
     """
     from livekit.agents.llm.chat_context import (
         ChatMessage,
@@ -39,15 +38,13 @@ def map_history_to_segments(
         FunctionCallOutput,
     )
 
-    # Log all items passed to the function
-    logger.info(f"map_history_to_segments called with {len(items)} items")
+    logger.debug("map_history_to_segments called with %d items", len(items))
     for idx, item in enumerate(items):
-        logger.info(f"  Item {idx}: {type(item).__name__} - {item}")
+        logger.debug("  Item %d: %s - %s", idx, type(item).__name__, item)
 
     segments: list[dict] = []
 
     for i, item in enumerate(items):
-            
         if isinstance(item, ChatMessage):
             if item.role not in ("user", "assistant"):
                 continue  # Skip system / developer instruction messages
@@ -55,11 +52,13 @@ def map_history_to_segments(
             role = "user" if item.role == "user" else "agent"
             text = item.text_content or ""
 
+            started = item.metrics.get("started_speaking_at", session_start_ts)
+            stopped = item.metrics.get("stopped_speaking_at", started)
             seg: dict = {
                 "role": role,
                 "text": text,
-                "start_ms": max(0, int((item.metrics["started_speaking_at"] - session_start_ts) * 1000)),
-                "end_ms": max(0, int((item.metrics["stopped_speaking_at"] - session_start_ts) * 1000)),
+                "start_ms": max(0, int((started - session_start_ts) * 1000)),
+                "end_ms": max(0, int((stopped - session_start_ts) * 1000)),
                 "metadata": {
                     "id": item.id,
                     "interrupted": item.interrupted,
@@ -216,7 +215,7 @@ def to_create_call_request(
     # Optional fields — omit when empty/None to keep payload clean
     if config.cost_calculator is not None:
         try:
-            payload["call_cost"] = config.cost_calculator()
+            payload["call_cost"] = config.cost_calculator(usage)
         except Exception:
             logger.warning("cost_calculator function raised an error", exc_info=True)
 

@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Awaitable, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable
+
+if TYPE_CHECKING:
+    from livekit.agents.metrics import UsageSummary
+
+
+_DEFAULT_BASE_URL = "https://api.usetuner.ai"
 
 
 @dataclass
@@ -12,10 +18,10 @@ class TunerConfig:
     api_key: str
     workspace_id: int
     agent_id: str
-    base_url: str = "https://api.usetuner.ai"
+    base_url: str = _DEFAULT_BASE_URL
     call_type: str | None = None  # None = auto-detect from participant kind
     recording_url_resolver: Callable[[str, str], Awaitable[str | None]] | None = None
-    cost_calculator: Callable | None = None
+    cost_calculator: Callable[[UsageSummary], float] | None = None
     extra_metadata: dict | None = None
     enabled: bool = True
     timeout_seconds: float = 30.0
@@ -30,7 +36,7 @@ class TunerConfig:
         base_url: str | None = None,
         call_type: str | None = None,
         recording_url_resolver: Callable | None = None,
-        cost_calculator: Callable | None = None,
+        cost_calculator: Callable[[UsageSummary], float] | None = None,
         extra_metadata: dict | None = None,
         enabled: bool = True,
         timeout_seconds: float = 30.0,
@@ -70,9 +76,7 @@ class TunerConfig:
                 "Set the TUNER_AGENT_ID env var or pass agent_id= to TunerPlugin."
             )
 
-        resolved_base_url = base_url or os.environ.get(
-            "TUNER_BASE_URL", "https://api.usetuner.ai"
-        )
+        resolved_base_url = base_url or os.environ.get("TUNER_BASE_URL", _DEFAULT_BASE_URL)
 
         return cls(
             api_key=resolved_api_key,

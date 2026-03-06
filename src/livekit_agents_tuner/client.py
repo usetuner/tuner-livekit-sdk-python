@@ -5,13 +5,15 @@ import logging
 import random
 from typing import TYPE_CHECKING, Any
 
+import aiohttp
+
 if TYPE_CHECKING:
     from .config import TunerConfig
 
 logger = logging.getLogger("livekit_agents_tuner.client")
 
 # HTTP status codes that warrant a retry
-_RETRY_STATUSES = frozenset({500, 502, 503, 504})
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
 async def submit_call(payload: dict, config: "TunerConfig") -> None:
@@ -23,8 +25,6 @@ async def submit_call(payload: dict, config: "TunerConfig") -> None:
       - Does NOT retry on HTTP 4xx (log and abandon).
       - Delays: 1s, 2s, 4s (+ 0–500ms jitter) between attempts.
     """
-    import aiohttp
-
     url = (
         f"{config.base_url.rstrip('/')}/api/v1/public/call"
         f"?workspace_id={config.workspace_id}"
@@ -35,7 +35,7 @@ async def submit_call(payload: dict, config: "TunerConfig") -> None:
         "Content-Type": "application/json",
     }
 
-    logger.info("Tuner API request: POST %s\nPayload: %s", url, payload)
+    logger.debug("Tuner API request: POST %s\nPayload: %s", url, payload)
 
     last_exc: Exception | None = None
 

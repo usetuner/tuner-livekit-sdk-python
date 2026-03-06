@@ -11,6 +11,7 @@ from .mapper import to_create_call_request
 
 if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
+    from livekit.agents.metrics import UsageSummary
 
 logger = logging.getLogger("livekit_agents_tuner")
 
@@ -65,7 +66,7 @@ class TunerPlugin:
             agent_id="my-agent",
             call_type="phone_call",          # override auto-detection
             recording_url_resolver=my_fn,    # async (room, job_id) -> str | None
-            cost_calculator=my_cost_fn,      # (UsageSummary) -> int (cost in cents)
+            cost_calculator=my_cost_fn,      # (UsageSummary) -> float (cost in dollars)
             extra_metadata={"env": "prod"},
             max_retries=3,
             timeout_seconds=30,
@@ -83,7 +84,7 @@ class TunerPlugin:
         base_url: str | None = None,
         call_type: str | None = None,
         recording_url_resolver: Callable | None = None,
-        cost_calculator: Callable[[any], int] | None = None,
+        cost_calculator: Callable[[UsageSummary], float] | None = None,
         extra_metadata: dict | None = None,
         enabled: bool = True,
         timeout_seconds: float = 30.0,
@@ -144,20 +145,13 @@ class TunerPlugin:
             if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
                 phone = (
                     participant.attributes.get("sip.phoneNumber")
-                    or participant.attributes.get("sip.phoneNumber")
                     or participant.attributes.get("phoneNumber")
                     or participant.attributes.get("phone_number")
-                    or None
                 )
                 state.record_sip_participant(phone)
 
     def _register_shutdown_hook(self) -> None:
-        plugin = self
-
-        async def _shutdown_handler(reason: str) -> None:
-            await plugin._on_shutdown(reason)
-
-        self._ctx.add_shutdown_callback(_shutdown_handler)
+        self._ctx.add_shutdown_callback(self._on_shutdown)
 
     async def _on_shutdown(self, reason: str) -> None:
         if self._config is None:
@@ -202,12 +196,12 @@ class TunerPlugin:
         try:
             await asyncio.wait_for(
                 submit_call(payload, self._config),
-                timeout=self._config.timeout_seconds,
+                timeout=self._config.timeout_seconds * (self._config.max_retries + 1),
             )
         except asyncio.TimeoutError:
             logger.error(
                 "Tuner submission timed out after %.1fs for call_id=%s",
-                self._config.timeout_seconds,
+                self._config.timeout_seconds * (self._config.max_retries + 1),
                 payload.get("call_id"),
             )
         except Exception:
