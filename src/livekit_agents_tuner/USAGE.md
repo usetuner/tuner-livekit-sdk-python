@@ -109,7 +109,7 @@ Estimates `duration_ms = word_count × 250 ms` (≈ 240 wpm), sets `end_ms = sta
 Segments with no text get no timing fields:
 
 ```python
-TunerPlugin(session, ctx, timing_strategy="word_count")
+TunerPlugin(session, ctx)
 ```
 
 ### Custom callable
@@ -126,7 +126,7 @@ def my_strategy(
     duration_ms = word_count * 200   # 200 ms per word instead of 250
     return (current.created_at * 1000 + duration_ms, duration_ms)
 
-TunerPlugin(session, ctx, timing_strategy=my_strategy)
+TunerPlugin(session, ctx)
 ```
 
 ---
@@ -219,7 +219,6 @@ async def entrypoint(ctx: JobContext):
         call_type="phone_call",
         recording_url_resolver=get_recording_url,
         cost_calculator=calculate_cost,
-        timing_strategy="word_count",
         extra_metadata={"env": "prod", "region": "us-east-1"},
         timeout_seconds=20.0,
         max_retries=3,

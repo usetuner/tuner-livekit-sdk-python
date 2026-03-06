@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable
 
 from .client import submit_call
 from .collector import SessionState
-from .config import TIMING_WORD_COUNT, TimingStrategy, TunerConfig
+from .config import TunerConfig
 from .mapper import to_create_call_request
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ class TunerPlugin:
             agent_id="my-agent",
             call_type="phone_call",          # override auto-detection
             recording_url_resolver=my_fn,    # async (room, job_id) -> str | None
-            cost_calculator=my_cost_fn,      # (UsageSummary) -> float (USD)
+            cost_calculator=my_cost_fn,      # (UsageSummary) -> int (cost in cents)
             extra_metadata={"env": "prod"},
             max_retries=3,
             timeout_seconds=30,
@@ -88,7 +88,6 @@ class TunerPlugin:
         enabled: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
-        timing_strategy: "TimingStrategy" = TIMING_WORD_COUNT,
     ) -> None:
         self._session = session
         self._ctx = ctx
@@ -112,7 +111,6 @@ class TunerPlugin:
                 enabled=enabled,
                 timeout_seconds=timeout_seconds,
                 max_retries=max_retries,
-                timing_strategy=timing_strategy,
             )
         except ValueError as exc:
             logger.error(

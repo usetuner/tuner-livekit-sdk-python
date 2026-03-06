@@ -7,62 +7,25 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .collector import SessionState
-    from .config import TimingStrategy, TunerConfig
+    from .config import TunerConfig
 
 logger = logging.getLogger("livekit_agents_tuner.mapper")
 
-
-def _apply_timing(
-    seg: dict,
-    current: Any,
-    next_msg: Any,
-    strategy: "TimingStrategy",
-) -> None:
-    """
-    Apply a timing strategy to a user/agent segment in-place.
-
-    Built-in strategies:
-      "word_count" — estimate duration_ms = word_count * 250 ms, end_ms = start_ms + duration_ms
-
-    Custom strategy (callable):
-      def my_strategy(current: ChatMessage, next_msg: ChatMessage | None) -> tuple[int | None, int | None]:
-          # return (end_ms, duration_ms); use None to leave a field unset
-          ...
-    """
-    from .config import MS_PER_WORD, TIMING_WORD_COUNT
-
-    if strategy == TIMING_WORD_COUNT:
-        text = seg.get("text", "")
-        word_count = len(text.split()) if text.strip() else 0
-        if word_count > 0:
-            duration_ms = word_count * MS_PER_WORD
-            seg["duration_ms"] = duration_ms
-            seg["end_ms"] = seg["start_ms"] + duration_ms
-        return
-
-    if callable(strategy):
-        try:
-            end_ms, duration_ms = strategy(current, next_msg)
-            if end_ms is not None:
-                seg["end_ms"] = end_ms
-            if duration_ms is not None:
-                seg["duration_ms"] = duration_ms
-        except Exception:
-            logger.warning(
-                "Custom timing_strategy raised an error; timing fields left unset",
-                exc_info=True,
-            )
-        return
-
-    logger.warning("Unknown timing_strategy %r; timing fields left unset", strategy)
-
-
 def map_history_to_segments(
     items: list[Any],
-    timing_strategy: "TimingStrategy" = "none",
+    session_start_ts: float = 0.0,
+    session_end_ts: float | None = None,
 ) -> list[dict]:
     """
     Map LiveKit ChatContext items to Tuner PublicTranscriptSegment dicts.
+
+    Args:
+        items:            List of ChatContext items (ChatMessage, FunctionCall, etc.).
+        session_start_ts: Session start time (epoch seconds). Used to compute
+                          start_ms/end_ms relative to session start.
+        session_end_ts:   Session end time (epoch seconds). Used as the end_ms
+                          for the last turn. Falls back to the last message's
+                          created_at if not provided.
 
     Roles produced:
       - user          → ChatMessage(role="user")
@@ -76,38 +39,64 @@ def map_history_to_segments(
         FunctionCallOutput,
     )
 
-    segments: list[dict] = []
-    # Track (segment_index, source ChatMessage) for timing post-processing
-    timed: list[tuple[int, Any]] = []
+    # Log all items passed to the function
+    logger.info(f"map_history_to_segments called with {len(items)} items")
+    for idx, item in enumerate(items):
+        logger.info(f"  Item {idx}: {type(item).__name__} - {item}")
 
-    for item in items:
+    segments: list[dict] = []
+
+    for i, item in enumerate(items):
+            
         if isinstance(item, ChatMessage):
             if item.role not in ("user", "assistant"):
                 continue  # Skip system / developer instruction messages
 
             role = "user" if item.role == "user" else "agent"
             text = item.text_content or ""
-            start_ms = int(item.created_at * 1000)
 
             seg: dict = {
                 "role": role,
                 "text": text,
-                "start_ms": start_ms,
-                # end_ms and duration_ms are not available from LiveKit's ChatMessage.
-                # LiveKit only exposes created_at (when the message was committed),
-                # not per-segment speech start/end times.
-                # Populate them by passing timing_strategy= to map_history_to_segments.
-                # "end_ms": ...,
-                # "duration_ms": ...,
+                "start_ms": max(0, int((item.metrics["started_speaking_at"] - session_start_ts) * 1000)),
+                "end_ms": max(0, int((item.metrics["stopped_speaking_at"] - session_start_ts) * 1000)),
                 "metadata": {
                     "id": item.id,
                     "interrupted": item.interrupted,
+                    "llm_node_ttft": item.metrics.get("llm_node_ttft"),
+                    "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
+                    "e2e_latency": item.metrics.get("e2e_latency"),
                 },
             }
-            timed.append((len(segments), item))
             segments.append(seg)
 
         elif isinstance(item, FunctionCall):
+            start_ms = max(0, int((item.created_at - session_start_ts) * 1000))
+            end_ms = start_ms
+            result: Any = None
+            is_error = False
+            error: Any = None
+            if i + 1 < len(items):
+                next_item = items[i + 1]
+                if isinstance(next_item, FunctionCallOutput):
+                    end_ms = max(0, int((next_item.created_at - session_start_ts) * 1000))
+                    is_error = bool(next_item.is_error)
+                    if is_error:
+                        result = next_item.output
+                        error = next_item.output
+                    else:
+                        if isinstance(next_item.output, str):
+                            try:
+                                result = json.loads(next_item.output)
+                            except (json.JSONDecodeError, TypeError):
+                                result = (
+                                    next_item.output
+                                    if len(next_item.output.split()) <= 1
+                                    else {"message": next_item.output}
+                                )
+                        else:
+                            result = next_item.output
+
             try:
                 params = json.loads(item.arguments)
             except (json.JSONDecodeError, TypeError):
@@ -118,50 +107,16 @@ def map_history_to_segments(
                     "role": "agent_function",
                     "tool": {
                         "name": item.name,
+                        "start_ms": start_ms,
+                        "end_ms": end_ms,
                         "request_id": item.call_id,
                         "params": params,
-                        "result": None,
-                        "is_error": False,
-                        "error": None,
+                        "result": result,
+                        "is_error": is_error,
+                        "error": error,
                     },
                 }
             )
-
-        elif isinstance(item, FunctionCallOutput):
-            # Merge into the nearest matching agent_function segment
-            merged = False
-            for seg in reversed(segments):
-                if (
-                    seg.get("role") == "agent_function"
-                    and seg["tool"]["request_id"] == item.call_id
-                    and seg["tool"]["result"] is None
-                ):
-                    seg["tool"]["result"] = {"message": item.output}
-                    seg["tool"]["is_error"] = item.is_error
-                    if item.is_error:
-                        seg["tool"]["error"] = item.output
-                    merged = True
-                    break
-
-            if not merged:
-                # Orphan output — no matching function call found
-                segments.append(
-                    {
-                        "role": "agent_result",
-                        "tool": {
-                            "name": item.name,
-                            "request_id": item.call_id,
-                            "result": {"message": item.output},
-                            "is_error": item.is_error,
-                            "error": item.output if item.is_error else None,
-                        },
-                    }
-                )
-
-    # Post-processing: apply timing strategy to user/agent message segments
-    for i, (seg_idx, current_msg) in enumerate(timed):
-        next_msg = timed[i + 1][1] if i + 1 < len(timed) else None
-        _apply_timing(segments[seg_idx], current_msg, next_msg, timing_strategy)
 
     return segments
 
@@ -220,7 +175,13 @@ def to_create_call_request(
         except Exception:
             logger.debug("Could not inspect room participants for call_type detection")
 
-    segments = map_history_to_segments(history_items, config.timing_strategy)
+    end_ts = state.end_timestamp or time.time()
+
+    segments = map_history_to_segments(
+        history_items,
+        session_start_ts=state.start_timestamp,
+        session_end_ts=end_ts,
+    )
     plain_transcript = build_plain_transcript(history_items)
 
     # --- Usage summary for metadata ---
@@ -241,8 +202,6 @@ def to_create_call_request(
     if config.extra_metadata:
         general_meta.update(config.extra_metadata)
 
-    end_ts = state.end_timestamp or time.time()
-
     payload: dict = {
         "call_id": call_id,
         "call_type": call_type,
@@ -255,6 +214,12 @@ def to_create_call_request(
     }
 
     # Optional fields — omit when empty/None to keep payload clean
+    if config.cost_calculator is not None:
+        try:
+            payload["call_cost"] = config.cost_calculator()
+        except Exception:
+            logger.warning("cost_calculator function raised an error", exc_info=True)
+
     if plain_transcript:
         payload["transcript"] = plain_transcript
 

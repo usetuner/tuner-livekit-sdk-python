@@ -1,7 +1,7 @@
 import logging
 
-import os
-from soundflare import LivekitObserve
+# import os
+# from soundflare import LivekitObserve
 from livekit.agents import AgentSession
 
 from dotenv import load_dotenv
@@ -95,10 +95,13 @@ def prewarm(proc: JobProcess):
 
 server.setup_fnc = prewarm
 
-soundflare = LivekitObserve(
-    agent_id="60ffcbb4-1c12-47c5-9849-de2e6a6990e1",
-    apikey="soundflare_c7ab3d6be7ee1299587806d113755181d762bc44ed943f087b305be42291f1b0" # Generate this in the SoundFlare Dashboard
-)
+def calculate_cost():
+    return 2
+
+# soundflare = LivekitObserve(
+#     agent_id="60ffcbb4-1c12-47c5-9849-de2e6a6990e1",
+#     apikey="soundflare_c7ab3d6be7ee1299587806d113755181d762bc44ed943f087b305be42291f1b0" # Generate this in the SoundFlare Dashboard
+# )
 
 
 @server.rtc_session(agent_name="my-agent")
@@ -131,20 +134,21 @@ async def my_agent(ctx: JobContext):
         preemptive_generation=True,
     )
 
-#     TunerPlugin(                                                                                                                                                                                                                                                                  
-#       session,                                                                                                                                                                                                                                                                
-#       ctx,
-#       agent_id="ca57706c-060a-4d49-a577-e9b6dd9243d3",
-#       cost_calculator=lambda usage: 2,  # Example cost function (USD)
-#   )
+    TunerPlugin(                                                                                                                                                                                                                                                                  
+      session,                                                                                                                                                                                                                                                                
+      ctx,
+      agent_id="ca57706c-060a-4d49-a577-e9b6dd9243d3",
+      cost_calculator=calculate_cost,  # Example cost function (USD)
+  )
 
 
-    session_id = soundflare.start_session(session=session)
+
+    # session_id = soundflare.start_session(session=session)
     
-    # Export data on shutdown
-    async def on_shutdown():
-        await soundflare.export(session_id)
-    ctx.add_shutdown_callback(on_shutdown)
+    # # Export data on shutdown
+    # async def on_shutdown():
+    #     await soundflare.export(session_id)
+    # ctx.add_shutdown_callback(on_shutdown)
     
     # await session.start(...)
 

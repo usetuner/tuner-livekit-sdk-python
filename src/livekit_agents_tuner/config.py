@@ -1,19 +1,8 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Literal
-
-# Built-in timing strategy name
-TIMING_WORD_COUNT = "word_count"  # estimate duration_ms = word_count * MS_PER_WORD
-
-MS_PER_WORD = 250  # milliseconds per spoken word (approx. 240 wpm)
-
-# Type alias for a timing strategy.
-# A custom strategy is a callable:
-#   (current: ChatMessage, next_msg: ChatMessage | None) -> tuple[int | None, int | None]
-# where the tuple is (end_ms, duration_ms). Return None for a field to leave it unset.
-TimingStrategy = Literal["word_count"] | Callable
+from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 
 @dataclass
@@ -31,7 +20,6 @@ class TunerConfig:
     enabled: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
-    timing_strategy: TimingStrategy = TIMING_WORD_COUNT
 
     @classmethod
     def from_env(
@@ -47,7 +35,6 @@ class TunerConfig:
         enabled: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
-        timing_strategy: TimingStrategy = TIMING_WORD_COUNT,
     ) -> "TunerConfig":
         """
         Build config from keyword arguments, falling back to environment variables.
@@ -99,5 +86,4 @@ class TunerConfig:
             enabled=enabled,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
-            timing_strategy=timing_strategy,
         )
