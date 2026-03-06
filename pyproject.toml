@@ -13,6 +13,7 @@ dependencies = [
     "livekit-plugins-noise-cancellation~=0.2",
     "python-dotenv",
     "soundflare",
+    "livekit-agents-tuner",
 ]
 
 [dependency-groups]
@@ -24,9 +25,16 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = ["livekit_agents_tuner*"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+livekit-agents-tuner = { workspace = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

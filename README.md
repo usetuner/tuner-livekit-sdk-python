@@ -140,3 +140,9 @@ You can also self-host LiveKit instead of using LiveKit Cloud. See the [self-hos
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+## To publish tuner SDK to PyPI when ready
+cd packages/livekit-agents-tuner
+uv build
+uv publish  

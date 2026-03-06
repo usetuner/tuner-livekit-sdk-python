@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "livekit-agents-tuner"
+version = "0.1.0"
+description = "Automatically ingest LiveKit Agents session data into the Tuner observability API"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+keywords = ["livekit", "agents", "voice-ai", "observability", "analytics", "tuner"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+dependencies = [
+    "aiohttp>=3.9",
+    "livekit-agents>=1.4",
+]
+
+[project.urls]
+Homepage     = "https://usetuner.ai"
+Documentation = "https://docs.usetuner.ai"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"livekit_agents_tuner" = ["py.typed"]

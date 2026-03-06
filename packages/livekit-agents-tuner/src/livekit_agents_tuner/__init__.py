@@ -15,4 +15,6 @@ Set env vars:
 from .config import TunerConfig
 from .plugin import TunerPlugin
 
-__all__ = ["TunerPlugin", "TunerConfig"]
+__version__ = "0.1.0"
+
+__all__ = ["TunerPlugin", "TunerConfig", "__version__"]
