@@ -65,55 +65,37 @@ def map_history_to_segments(
                     "llm_node_ttft": item.metrics.get("llm_node_ttft"),
                     "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
                     "e2e_latency": item.metrics.get("e2e_latency"),
+                    "transcript_confidence": item.transcript_confidence,
                 },
             }
             segments.append(seg)
 
-        elif isinstance(item, FunctionCall):
-            start_ms = max(0, int((item.created_at - session_start_ts) * 1000))
-            end_ms = start_ms
-            result: Any = None
-            is_error = False
-            error: Any = None
-            if i + 1 < len(items):
-                next_item = items[i + 1]
-                if isinstance(next_item, FunctionCallOutput):
-                    end_ms = max(0, int((next_item.created_at - session_start_ts) * 1000))
-                    is_error = bool(next_item.is_error)
-                    if is_error:
-                        result = next_item.output
-                        error = next_item.output
-                    else:
-                        if isinstance(next_item.output, str):
-                            try:
-                                result = json.loads(next_item.output)
-                            except (json.JSONDecodeError, TypeError):
-                                result = (
-                                    next_item.output
-                                    if len(next_item.output.split()) <= 1
-                                    else {"message": next_item.output}
-                                )
-                        else:
-                            result = next_item.output
-
-            try:
-                params = json.loads(item.arguments)
-            except (json.JSONDecodeError, TypeError):
-                params = item.arguments  # Pass raw string if not valid JSON
-
+        elif isinstance(item, (FunctionCall, FunctionCallOutput)):
+            tool_payload = {
+                "name": item.name,
+                "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
+                "request_id": item.call_id,
+            }
+            
+            if isinstance(item, FunctionCall):
+                role = "agent_function"
+                try:
+                    params = json.loads(item.arguments)
+                except (json.JSONDecodeError, TypeError):
+                    params = item.arguments  # Pass raw string if not valid JSON
+                tool_payload["params"] = params
+            elif isinstance(item, FunctionCallOutput):
+                role = "agent_result"
+                tool_payload["is_error"] = item.is_error
+                if item.is_error:
+                    tool_payload["error"] = item.output
+                else:
+                    tool_payload["output"] = item.output
+            
             segments.append(
                 {
-                    "role": "agent_function",
-                    "tool": {
-                        "name": item.name,
-                        "start_ms": start_ms,
-                        "end_ms": end_ms,
-                        "request_id": item.call_id,
-                        "params": params,
-                        "result": result,
-                        "is_error": is_error,
-                        "error": error,
-                    },
+                    "role": role,
+                    "tool": tool_payload,
                 }
             )
 
