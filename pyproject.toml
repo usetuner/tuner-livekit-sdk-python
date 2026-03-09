@@ -25,20 +25,23 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-exclude = ["livekit_agents_tuner*"]
 
 [tool.setuptools.package-dir]
 "" = "src"
 
-[tool.uv.workspace]
-members = ["packages/*"]
-
 [tool.uv.sources]
-livekit-agents-tuner = { workspace = true }
+# Local dev: points to the library cloned next to this repo.
+# Change this path to match where you cloned livekit-agents-tuner.
+#
+# Local:      { path = "../../livekit-agents-tuner", editable = true }
+# Git branch: { git = "https://github.com/your-org/livekit-agents-tuner", branch = "main" }
+# PyPI:       remove this entry entirely once published
+livekit-agents-tuner = { path = "packages/livekit-agents-tuner", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 88

@@ -52,7 +52,7 @@ def func_output(call_id: str, output: str, is_error: bool = False) -> FunctionCa
 
 
 def test_map_history_to_segments_with_provided_restaurant_slot_values():
-    """Maps the exact user-provided 4-item history and merges tool output correctly."""
+    """Maps the exact user-provided 4-item history: user, agent_function, agent_result, agent."""
     items = [
         ChatMessage(
             id="item_6fef49b68773",
@@ -115,8 +115,10 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
         session_end_ts=1772730380.521417,
     )
 
-    assert len(segments) == 3
+    # FunctionCall and FunctionCallOutput each produce their own segment now
+    assert len(segments) == 4  # user, agent_function, agent_result, agent
 
+    # --- segment 0: user message ---
     assert segments[0]["role"] == "user"
     assert segments[0]["metadata"]["id"] == "item_6fef49b68773"
     assert segments[0]["metadata"]["interrupted"] is False
@@ -125,27 +127,34 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
         == "Hello. What is the first available slot for two persons tomorrow between eight and twelve?"
     )
 
+    # --- segment 1: function call (no result here; result is in the next segment) ---
     assert segments[1]["role"] == "agent_function"
-    tool = segments[1]["tool"]
-    assert tool["name"] == "check_table_availability"
-    assert tool["request_id"] == "call_3DxJTGulkeLIKVqABS3oe2Ij"
-    assert tool["params"] == {"date": "2024-04-28", "guests": 2, "time": "08:00"}
-    assert tool["result"] == {"message": "Table is available on 2024-04-28 at 08:00 for 2 guests."}
-    assert tool["is_error"] is False
-    assert tool["error"] is None
+    fn_tool = segments[1]["tool"]
+    assert fn_tool["name"] == "check_table_availability"
+    assert fn_tool["request_id"] == "call_3DxJTGulkeLIKVqABS3oe2Ij"
+    assert fn_tool["params"] == {"date": "2024-04-28", "guests": 2, "time": "08:00"}
     expected_start_ms = max(0, int((items[1].created_at - 1772730379.491848) * 1000))
-    expected_end_ms = max(0, int((items[2].created_at - 1772730379.491848) * 1000))
-    assert tool["start_ms"] == expected_start_ms
-    assert tool["end_ms"] == expected_end_ms
+    assert fn_tool["start_ms"] == expected_start_ms
 
+    # --- segment 2: function output ---
+    assert segments[2]["role"] == "agent_result"
+    res_tool = segments[2]["tool"]
+    assert res_tool["name"] == "check_table_availability"
+    assert res_tool["request_id"] == "call_3DxJTGulkeLIKVqABS3oe2Ij"
+    assert res_tool["is_error"] is False
+    assert res_tool["output"] == "Table is available on 2024-04-28 at 08:00 for 2 guests."
+    expected_result_ms = max(0, int((items[2].created_at - 1772730379.491848) * 1000))
+    assert res_tool["start_ms"] == expected_result_ms
+
+    # --- segment 3: agent reply ---
     expected_agent_start_ms = max(0, int((items[3].metrics["started_speaking_at"] - 1772730379.491848) * 1000))
     expected_agent_end_ms = max(0, int((items[3].metrics["stopped_speaking_at"] - 1772730379.491848) * 1000))
-    assert segments[2]["start_ms"] == expected_agent_start_ms
-    assert segments[2]["end_ms"] == expected_agent_end_ms
-    assert segments[2]["metadata"]["id"] == "item_4dd0f89440d5"
-    assert segments[2]["metadata"]["interrupted"] is True
+    assert segments[3]["start_ms"] == expected_agent_start_ms
+    assert segments[3]["end_ms"] == expected_agent_end_ms
+    assert segments[3]["metadata"]["id"] == "item_4dd0f89440d5"
+    assert segments[3]["metadata"]["interrupted"] is True
     assert (
-        segments[2]["text"]
+        segments[3]["text"]
         == "The first available slot for two persons tomorrow is at 08:00. Would you like to"
     )
 
@@ -255,12 +264,17 @@ def test_to_create_call_request_with_function_calls():
     segments = payload["transcript_with_tool_calls"]
     assert len(segments) >= 3
 
-    # Verify function call was included
+    # Verify function call segment
     func_segments = [s for s in segments if s["role"] == "agent_function"]
     assert len(func_segments) == 1
     assert func_segments[0]["tool"]["name"] == "check_availability"
     assert func_segments[0]["tool"]["params"]["date"] == "2024-06-15"
-    assert func_segments[0]["tool"]["result"]["message"] == "Two slots available"
+
+    # Verify function output is a separate agent_result segment
+    result_segments = [s for s in segments if s["role"] == "agent_result"]
+    assert len(result_segments) == 1
+    assert result_segments[0]["tool"]["output"] == "Two slots available"
+    assert result_segments[0]["tool"]["is_error"] is False
 
 
 def test_to_create_call_request_with_sip_detection():
@@ -429,7 +443,11 @@ def test_to_create_call_request_restaurant_booking_scenario():
     assert func_seg["tool"]["name"] == "check_table_availability"
     assert func_seg["tool"]["params"]["date"] == "2024-06-13"
     assert func_seg["tool"]["params"]["guests"] == 2
-    assert "2024-06-13" in func_seg["tool"]["result"]["message"]
+
+    # Verify function output is a separate agent_result segment
+    result_segments = [s for s in segments if s["role"] == "agent_result"]
+    assert len(result_segments) == 1
+    assert "2024-06-13" in result_segments[0]["tool"]["output"]
 
     # Verify transcript
     assert "transcript" in payload

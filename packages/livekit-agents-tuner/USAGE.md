@@ -98,39 +98,6 @@ TunerPlugin(session, ctx, recording_url_resolver=manual_resolver)
 
 ---
 
-## Timing strategy
-
-`end_ms` and `duration_ms` are estimated per segment because LiveKit only exposes when a
-message was committed, not its precise speech boundaries.
-
-### `"word_count"` (default)
-
-Estimates `duration_ms = word_count × 250 ms` (≈ 240 wpm), sets `end_ms = start_ms + duration_ms`.
-Segments with no text get no timing fields:
-
-```python
-TunerPlugin(session, ctx)
-```
-
-### Custom callable
-
-Define your own strategy as a function:
-
-```python
-def my_strategy(
-    current,    # livekit.agents.llm.chat_context.ChatMessage
-    next_msg,   # ChatMessage | None  (None for the last segment)
-) -> tuple[int | None, int | None]:
-    # Return (end_ms, duration_ms). Use None to leave a field unset.
-    word_count = len(current.text_content.split())
-    duration_ms = word_count * 200   # 200 ms per word instead of 250
-    return (current.created_at * 1000 + duration_ms, duration_ms)
-
-TunerPlugin(session, ctx)
-```
-
----
-
 ## Cost calculation
 
 Provide a callable that receives a `UsageSummary` and returns the call cost in USD:
