@@ -13,10 +13,10 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "livekit-agents", extra = ["silero", "turn-detector"] },
-    { name = "livekit-agents-tuner" },
     { name = "livekit-plugins-noise-cancellation" },
     { name = "python-dotenv" },
     { name = "soundflare" },
+    { name = "tuner-livekit-sdk" },
 ]
 
 [package.dev-dependencies]
@@ -29,10 +29,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "livekit-agents", extras = ["silero", "turn-detector"], specifier = "~=1.4" },
-    { name = "livekit-agents-tuner", editable = "packages/livekit-agents-tuner" },
     { name = "livekit-plugins-noise-cancellation", specifier = "~=0.2" },
     { name = "python-dotenv" },
     { name = "soundflare" },
+    { name = "tuner-livekit-sdk", editable = "packages/tuner-livekit-sdk" },
 ]
 
 [package.metadata.requires-dev]
@@ -1062,27 +1062,6 @@ silero = [
 ]
 turn-detector = [
     { name = "livekit-plugins-turn-detector" },
-]
-
-[[package]]
-name = "livekit-agents-tuner"
-version = "0.1.0"
-source = { editable = "packages/livekit-agents-tuner" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "livekit-agents" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9" },
-    { name = "livekit-agents", specifier = ">=1.4" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
 ]
 
 [[package]]
@@ -2604,6 +2583,27 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d6/68/a39307bcc4116a30b2106f2e689130a48de8bd8a1e635b5e1030e46fcd9e/transformers-4.57.1.tar.gz", hash = "sha256:f06c837959196c75039809636cd964b959f6604b75b8eeec6fdfc0440b89cc55", size = 10142511, upload-time = "2025-10-14T15:39:26.18Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/71/d3/c16c3b3cf7655a67db1144da94b021c200ac1303f82428f2beef6c2e72bb/transformers-4.57.1-py3-none-any.whl", hash = "sha256:b10d05da8fa67dc41644dbbf9bc45a44cb86ae33da6f9295f5fbf5b7890bd267", size = 11990925, upload-time = "2025-10-14T15:39:23.085Z" },
+]
+
+[[package]]
+name = "tuner-livekit-sdk"
+version = "0.1.0"
+source = { editable = "packages/tuner-livekit-sdk" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "livekit-agents" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9" },
+    { name = "livekit-agents", specifier = ">=1.4" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [[package]]

@@ -13,7 +13,7 @@ dependencies = [
     "livekit-plugins-noise-cancellation~=0.2",
     "python-dotenv",
     "soundflare",
-    "livekit-agents-tuner",
+    "tuner-livekit-sdk",
 ]
 
 [dependency-groups]
@@ -31,12 +31,12 @@ where = ["src"]
 
 [tool.uv.sources]
 # Local dev: points to the library cloned next to this repo.
-# Change this path to match where you cloned livekit-agents-tuner.
+# Change this path to match where you cloned tuner-livekit-sdk.
 #
-# Local:      { path = "../../livekit-agents-tuner", editable = true }
-# Git branch: { git = "https://github.com/your-org/livekit-agents-tuner", branch = "main" }
+# Local:      { path = "../../tuner-livekit-sdk", editable = true }
+# Git branch: { git = "https://github.com/your-org/tuner-livekit-sdk", branch = "main" }
 # PyPI:       remove this entry entirely once published
-livekit-agents-tuner = { path = "packages/livekit-agents-tuner", editable = true }
+tuner-livekit-sdk = { path = "packages/tuner-livekit-sdk", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
