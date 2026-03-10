@@ -61,6 +61,9 @@ Sign up for [LiveKit Cloud](https://cloud.livekit.io/) then set up the environme
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
+- `TUNER_API_KEY`
+- `TUNER_WORKSPACE_ID`
+- `TUNER_BASE_URL`
 
 You can load the LiveKit environment automatically using the [LiveKit CLI](https://docs.livekit.io/home/cli/cli-setup):
 
@@ -137,12 +140,67 @@ This project is production-ready and includes a working `Dockerfile`. To deploy 
 
 You can also self-host LiveKit instead of using LiveKit Cloud. See the [self-hosting](https://docs.livekit.io/home/self-hosting/) guide for more information. If you choose to self-host, you'll need to also use [model plugins](https://docs.livekit.io/agents/models/#plugins) instead of LiveKit Inference and will need to remove the [LiveKit Cloud noise cancellation](https://docs.livekit.io/home/cloud/noise-cancellation/) plugin.
 
+## SDK Development
+
+The Tuner SDK (`tuner-livekit-sdk`) lives at `packages/tuner-livekit-sdk/` as a **git submodule** linked to [usetuner/tuner-livekit-sdk-python](https://github.com/usetuner/tuner-livekit-sdk-python). It is installed as an **editable** dependency, meaning any changes you make to its source files are immediately visible to the main project — no reinstall required.
+
+### Fresh clone (include the submodule)
+
+```bash
+git clone --recurse-submodules https://github.com/your-org/agent-starter-python.git
+```
+
+If you already cloned without the flag:
+
+```bash
+git submodule update --init
+```
+
+### Edit the SDK
+
+Source files live at `packages/tuner-livekit-sdk/src/livekit_agents_tuner/`. Any edits are picked up immediately — just run the agent normally:
+
+```bash
+uv run python src/agent.py console
+```
+
+### Run the SDK's own tests
+
+```bash
+cd packages/tuner-livekit-sdk
+uv run --no-project python -m pytest -v
+```
+
+### Commit SDK changes
+
+```bash
+cd packages/tuner-livekit-sdk
+git add .
+git commit -m "your message"
+git push
+```
+
+### Update the SDK version pinned by this project
+
+After pushing changes to the SDK repo, advance the submodule pointer here:
+
+```bash
+# from project root
+git submodule update --remote packages/tuner-livekit-sdk
+git add packages/tuner-livekit-sdk
+git commit -m "Bump tuner-livekit-sdk to latest"
+```
+
+### Publish the SDK to PyPI
+
+```bash
+cd packages/tuner-livekit-sdk
+uv build
+uv publish
+```
+
+---
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-
-## To publish tuner SDK to PyPI when ready
-cd packages/livekit-agents-tuner
-uv build
-uv publish  

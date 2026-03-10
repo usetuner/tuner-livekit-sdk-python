@@ -95,6 +95,8 @@ def prewarm(proc: JobProcess):
 
 server.setup_fnc = prewarm
 
+def calculate_cost(usage):
+    return 2 * usage.llm_prompt_tokens / 1000 + 4 * usage.llm_completion_tokens / 1000
 
 @server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
@@ -132,10 +134,6 @@ async def my_agent(ctx: JobContext):
       agent_id="ca57706c-060a-4d49-a577-e9b6dd9243d3",
       cost_calculator=calculate_cost,  # Example cost function (USD)
   )
-
-
-    def calculate_cost(usage):
-        return 2 * usage.llm_prompt_tokens / 1000 + 4 * usage.llm_completion_tokens / 1000
     
     
     # Create the assistant with configured function tools.
