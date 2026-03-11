@@ -1,7 +1,5 @@
 import logging
 
-# import os
-# from soundflare import LivekitObserve
 from livekit.agents import AgentSession
 
 from dotenv import load_dotenv
