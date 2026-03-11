@@ -5,6 +5,8 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from livekit.agents import AgentSession
+
 if TYPE_CHECKING:
     from .collector import SessionState
     from .config import TunerConfig
@@ -45,6 +47,7 @@ def map_history_to_segments(
     segments: list[dict] = []
 
     for i, item in enumerate(items):
+        role = None
         if isinstance(item, ChatMessage):
             if item.role not in ("user", "assistant"):
                 continue  # Skip system / developer instruction messages
@@ -63,6 +66,7 @@ def map_history_to_segments(
                     "id": item.id,
                     "interrupted": item.interrupted,
                     "llm_node_ttft": item.metrics.get("llm_node_ttft"),
+                    "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
                     "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
                     "e2e_latency": item.metrics.get("e2e_latency"),
                     "transcript_confidence": item.transcript_confidence,
@@ -116,8 +120,12 @@ def build_plain_transcript(items: list[Any]) -> str:
 
     return "\n".join(lines)
 
+def _model_name(component: Any) -> str | None:
+    # Handles None or components without a .model attribute
+    return getattr(component, "model", None)
 
 def to_create_call_request(
+    session: "AgentSession",
     state: "SessionState",
     history_items: list[Any],
     config: "TunerConfig",
@@ -168,17 +176,22 @@ def to_create_call_request(
     # --- Usage summary for metadata ---
     usage = state.get_usage_summary()
     usage_dict = {
-        "llm_prompt_tokens": usage.llm_prompt_tokens,
-        "llm_prompt_cached_tokens": usage.llm_prompt_cached_tokens,
-        "llm_completion_tokens": usage.llm_completion_tokens,
+        "llm_token": usage.llm_prompt_tokens + usage.llm_completion_tokens + usage.llm_prompt_cached_tokens,
         "tts_characters_count": usage.tts_characters_count,
-        "stt_audio_duration_s": usage.stt_audio_duration,
+        "stt_duration_seconds": usage.stt_audio_duration,
+    }
+
+    ai_models = {
+        "stt_model": _model_name(getattr(session, "stt", None)),
+        "llm_model": _model_name(getattr(session, "llm", None)),
+        "tts_model": _model_name(getattr(session, "tts", None)),
     }
 
     general_meta: dict = {
         "livekit_job_id": str(ctx.job.id),
         "livekit_room_name": ctx.room.name,
-        "usage_summary": usage_dict,
+        "usage_token": usage_dict,
+        "ai_models":ai_models,
     }
     if config.extra_metadata:
         general_meta.update(config.extra_metadata)

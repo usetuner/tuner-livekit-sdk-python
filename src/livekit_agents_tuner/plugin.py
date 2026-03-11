@@ -181,6 +181,7 @@ class TunerPlugin:
         # Build Tuner payload
         try:
             payload = to_create_call_request(
+                self._session,
                 self._state,
                 history_items,
                 self._config,
