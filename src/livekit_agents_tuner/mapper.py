@@ -75,12 +75,11 @@ def map_history_to_segments(
             segments.append(seg)
 
         elif isinstance(item, (FunctionCall, FunctionCallOutput)):
-            tool_payload = {
+            tool_payload: dict[str, Any] = {
                 "name": item.name,
-                "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
                 "request_id": item.call_id,
             }
-            
+
             if isinstance(item, FunctionCall):
                 role = "agent_function"
                 try:
@@ -95,10 +94,11 @@ def map_history_to_segments(
                     tool_payload["error"] = item.output
                 else:
                     tool_payload["output"] = item.output
-            
+
             segments.append(
                 {
                     "role": role,
+                    "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
                     "tool": tool_payload,
                 }
             )

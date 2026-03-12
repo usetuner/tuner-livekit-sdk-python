@@ -137,7 +137,8 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
     assert fn_tool["request_id"] == "call_3DxJTGulkeLIKVqABS3oe2Ij"
     assert fn_tool["params"] == {"date": "2024-04-28", "guests": 2, "time": "08:00"}
     expected_start_ms = max(0, int((items[1].created_at - 1772730379.491848) * 1000))
-    assert fn_tool["start_ms"] == expected_start_ms
+    assert segments[1]["start_ms"] == expected_start_ms
+    assert "start_ms" not in fn_tool
 
     # --- segment 2: function output ---
     assert segments[2]["role"] == "agent_result"
@@ -147,7 +148,8 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
     assert res_tool["is_error"] is False
     assert res_tool["output"] == "Table is available on 2024-04-28 at 08:00 for 2 guests."
     expected_result_ms = max(0, int((items[2].created_at - 1772730379.491848) * 1000))
-    assert res_tool["start_ms"] == expected_result_ms
+    assert segments[2]["start_ms"] == expected_result_ms
+    assert "start_ms" not in res_tool
 
     # --- segment 3: agent reply ---
     expected_agent_start_ms = max(0, int((items[3].metrics["started_speaking_at"] - 1772730379.491848) * 1000))
@@ -247,15 +249,16 @@ def test_function_call_metadata_fields():
     assert len(segments) == 1
     seg = segments[0]
     assert seg["role"] == "agent_function"
+    assert seg["start_ms"] == 3500
 
     tool = seg["tool"]
     assert tool["name"] == "book_table"
     assert tool["request_id"] == "call_abc123"
-    assert tool["start_ms"] == 3500
     assert tool["params"] == {"date": "2024-06-15", "guests": 4, "time": "19:00"}
     # No result fields on a call segment
     assert "output" not in tool
     assert "is_error" not in tool
+    assert "start_ms" not in tool
 
 
 def test_function_call_output_metadata_fields():
@@ -286,22 +289,24 @@ def test_function_call_output_metadata_fields():
     # --- success segment ---
     ok = segments[0]
     assert ok["role"] == "agent_result"
+    assert ok["start_ms"] == 4000
     assert ok["tool"]["name"] == "book_table"
     assert ok["tool"]["request_id"] == "call_abc123"
-    assert ok["tool"]["start_ms"] == 4000
     assert ok["tool"]["is_error"] is False
     assert ok["tool"]["output"] == "Booking confirmed for 4 guests on 2024-06-15 at 19:00."
     assert "error" not in ok["tool"]
+    assert "start_ms" not in ok["tool"]
 
     # --- error segment ---
     err = segments[1]
     assert err["role"] == "agent_result"
+    assert err["start_ms"] == 5000
     assert err["tool"]["name"] == "book_table"
     assert err["tool"]["request_id"] == "call_xyz999"
-    assert err["tool"]["start_ms"] == 5000
     assert err["tool"]["is_error"] is True
     assert err["tool"]["error"] == "No availability on that date."
     assert "output" not in err["tool"]
+    assert "start_ms" not in err["tool"]
 
 
 # ---------------------------------------------------------------------------
