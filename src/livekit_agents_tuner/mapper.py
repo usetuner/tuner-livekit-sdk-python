@@ -93,7 +93,7 @@ def map_history_to_segments(
                 if item.is_error:
                     tool_payload["error"] = item.output
                 else:
-                    tool_payload["output"] = item.output
+                    tool_payload["result"] = {"value": item.output}
 
             segments.append(
                 {
