@@ -67,7 +67,7 @@ def map_history_to_segments(
                     "interrupted": item.interrupted,
                     "llm_node_ttft": item.metrics.get("llm_node_ttft"),
                     "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
-                    "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
+                    "stt_node_ttfb": item.metrics.get("transcription_delay"),
                     "e2e_latency": item.metrics.get("e2e_latency"),
                     "transcript_confidence": item.transcript_confidence,
                 },
@@ -75,12 +75,11 @@ def map_history_to_segments(
             segments.append(seg)
 
         elif isinstance(item, (FunctionCall, FunctionCallOutput)):
-            tool_payload = {
+            tool_payload: dict[str, Any] = {
                 "name": item.name,
-                "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
                 "request_id": item.call_id,
             }
-            
+
             if isinstance(item, FunctionCall):
                 role = "agent_function"
                 try:
@@ -94,11 +93,12 @@ def map_history_to_segments(
                 if item.is_error:
                     tool_payload["error"] = item.output
                 else:
-                    tool_payload["output"] = item.output
-            
+                    tool_payload["result"] = {"value": item.output}
+
             segments.append(
                 {
                     "role": role,
+                    "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
                     "tool": tool_payload,
                 }
             )

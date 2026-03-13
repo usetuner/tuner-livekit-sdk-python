@@ -1,6 +1,9 @@
 """Tests for livekit_agents_tuner.mapper"""
 
+from __future__ import annotations
+
 import pytest
+from livekit.agents import AgentSession
 from livekit.agents.llm.chat_context import ChatMessage, FunctionCall, FunctionCallOutput
 
 from livekit_agents_tuner.mapper import (
@@ -134,7 +137,8 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
     assert fn_tool["request_id"] == "call_3DxJTGulkeLIKVqABS3oe2Ij"
     assert fn_tool["params"] == {"date": "2024-04-28", "guests": 2, "time": "08:00"}
     expected_start_ms = max(0, int((items[1].created_at - 1772730379.491848) * 1000))
-    assert fn_tool["start_ms"] == expected_start_ms
+    assert segments[1]["start_ms"] == expected_start_ms
+    assert "start_ms" not in fn_tool
 
     # --- segment 2: function output ---
     assert segments[2]["role"] == "agent_result"
@@ -144,7 +148,8 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
     assert res_tool["is_error"] is False
     assert res_tool["output"] == "Table is available on 2024-04-28 at 08:00 for 2 guests."
     expected_result_ms = max(0, int((items[2].created_at - 1772730379.491848) * 1000))
-    assert res_tool["start_ms"] == expected_result_ms
+    assert segments[2]["start_ms"] == expected_result_ms
+    assert "start_ms" not in res_tool
 
     # --- segment 3: agent reply ---
     expected_agent_start_ms = max(0, int((items[3].metrics["started_speaking_at"] - 1772730379.491848) * 1000))
@@ -158,6 +163,150 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
         == "The first available slot for two persons tomorrow is at 08:00. Would you like to"
     )
 
+
+def test_chat_message_metadata_fields():
+    """All metadata fields from ChatMessage are mapped correctly for both user and agent roles."""
+    session_start = 1_700_000_000.0
+
+    user = ChatMessage(
+        id="user_id_001",
+        role="user",
+        content=["Test user message"],
+        interrupted=False,
+        transcript_confidence=0.987,
+        created_at=session_start + 1.0,
+        metrics={
+            "started_speaking_at": session_start + 0.5,
+            "stopped_speaking_at": session_start + 1.5,
+            "transcription_delay": 0.21,
+        },
+    )
+    agent = ChatMessage(
+        id="agent_id_002",
+        role="assistant",
+        content=["Test agent reply"],
+        interrupted=True,
+        transcript_confidence=None,
+        created_at=session_start + 2.0,
+        metrics={
+            "started_speaking_at": session_start + 2.0,
+            "stopped_speaking_at": session_start + 3.5,
+            "llm_node_ttft": 0.45,
+            "tts_node_ttfb": 0.32,
+            "e2e_latency": 1.1,
+        },
+    )
+
+    segments = map_history_to_segments([user, agent], session_start_ts=session_start)
+
+    assert len(segments) == 2
+
+    # --- user segment ---
+    u = segments[0]
+    assert u["role"] == "user"
+    assert u["text"] == "Test user message"
+    assert u["start_ms"] == 500   # (session_start + 0.5 - session_start) * 1000
+    assert u["end_ms"] == 1500
+    assert u["metadata"]["id"] == "user_id_001"
+    assert u["metadata"]["interrupted"] is False
+    assert u["metadata"]["transcript_confidence"] == pytest.approx(0.987)
+    # stt_node_ttfb is sourced from transcription_delay (user-only metric)
+    assert u["metadata"]["stt_node_ttfb"] == pytest.approx(0.21)
+    assert u["metadata"]["llm_node_ttft"] is None
+    assert u["metadata"]["tts_node_ttfb"] is None
+    assert u["metadata"]["e2e_latency"] is None
+
+    # --- agent segment ---
+    a = segments[1]
+    assert a["role"] == "agent"
+    assert a["text"] == "Test agent reply"
+    assert a["start_ms"] == 2000
+    assert a["end_ms"] == 3500
+    assert a["metadata"]["id"] == "agent_id_002"
+    assert a["metadata"]["interrupted"] is True
+    assert a["metadata"]["transcript_confidence"] is None
+    assert a["metadata"]["llm_node_ttft"] == pytest.approx(0.45)
+    assert a["metadata"]["tts_node_ttfb"] == pytest.approx(0.32)
+    assert a["metadata"]["e2e_latency"] == pytest.approx(1.1)
+    # Agent messages have no transcription_delay, so stt_node_ttfb is None
+    assert a["metadata"]["stt_node_ttfb"] is None
+
+
+def test_function_call_metadata_fields():
+    """FunctionCall segment has correct tool fields: name, request_id, params, start_ms."""
+    session_start = 1_700_000_000.0
+    call_ts = session_start + 3.5
+
+    item = FunctionCall(
+        call_id="call_abc123",
+        name="book_table",
+        arguments='{"date": "2024-06-15", "guests": 4, "time": "19:00"}',
+        created_at=call_ts,
+    )
+
+    segments = map_history_to_segments([item], session_start_ts=session_start)
+
+    assert len(segments) == 1
+    seg = segments[0]
+    assert seg["role"] == "agent_function"
+    assert seg["start_ms"] == 3500
+
+    tool = seg["tool"]
+    assert tool["name"] == "book_table"
+    assert tool["request_id"] == "call_abc123"
+    assert tool["params"] == {"date": "2024-06-15", "guests": 4, "time": "19:00"}
+    # No result fields on a call segment
+    assert "output" not in tool
+    assert "is_error" not in tool
+    assert "start_ms" not in tool
+
+
+def test_function_call_output_metadata_fields():
+    """FunctionCallOutput produces an agent_result segment with correct tool fields."""
+    session_start = 1_700_000_000.0
+
+    # Successful output
+    success = FunctionCallOutput(
+        call_id="call_abc123",
+        name="book_table",
+        output="Booking confirmed for 4 guests on 2024-06-15 at 19:00.",
+        is_error=False,
+        created_at=session_start + 4.0,
+    )
+    # Error output
+    failure = FunctionCallOutput(
+        call_id="call_xyz999",
+        name="book_table",
+        output="No availability on that date.",
+        is_error=True,
+        created_at=session_start + 5.0,
+    )
+
+    segments = map_history_to_segments([success, failure], session_start_ts=session_start)
+
+    assert len(segments) == 2
+
+    # --- success segment ---
+    ok = segments[0]
+    assert ok["role"] == "agent_result"
+    assert ok["start_ms"] == 4000
+    assert ok["tool"]["name"] == "book_table"
+    assert ok["tool"]["request_id"] == "call_abc123"
+    assert ok["tool"]["is_error"] is False
+    assert ok["tool"]["output"] == "Booking confirmed for 4 guests on 2024-06-15 at 19:00."
+    assert "error" not in ok["tool"]
+    assert "start_ms" not in ok["tool"]
+
+    # --- error segment ---
+    err = segments[1]
+    assert err["role"] == "agent_result"
+    assert err["start_ms"] == 5000
+    assert err["tool"]["name"] == "book_table"
+    assert err["tool"]["request_id"] == "call_xyz999"
+    assert err["tool"]["is_error"] is True
+    assert err["tool"]["error"] == "No availability on that date."
+    assert "output" not in err["tool"]
+    assert "start_ms" not in err["tool"]
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +346,28 @@ class MockJobContext:
         self.room = MockRoom(room_name, participants)
 
 
+class MockComponent:
+    def __init__(self, model: str):
+        self.model = model
+
+
+def make_mock_session(
+    stt_model: str | None = None,
+    llm_model: str | None = None,
+    tts_model: str | None = None,
+) -> "AgentSession":
+    """Return a MagicMock typed as AgentSession for use in tests."""
+    from unittest.mock import MagicMock
+
+    from livekit.agents import AgentSession
+
+    mock = MagicMock(spec=AgentSession)
+    mock.stt = MockComponent(stt_model) if stt_model else None
+    mock.llm = MockComponent(llm_model) if llm_model else None
+    mock.tts = MockComponent(tts_model) if tts_model else None
+    return mock  # type: ignore[return-value]
+
+
 def test_to_create_call_request_basic():
     """Test basic payload generation with web_call type."""
     from livekit_agents_tuner.collector import SessionState
@@ -213,13 +384,14 @@ def test_to_create_call_request_basic():
         call_type="web_call",
     )
     ctx = MockJobContext(job_id="test_job_1")
+    session = make_mock_session()
 
     items = [
         user_msg("Hello", created_at=session_start),
         agent_msg("Hi there!", created_at=session_start + 1),
     ]
 
-    payload = to_create_call_request(state, items, config, ctx)
+    payload = to_create_call_request(session, state, items, config, ctx)
 
     assert payload["call_id"] == "test_job_1"
     assert payload["call_type"] == "web_call"
@@ -251,6 +423,7 @@ def test_to_create_call_request_with_function_calls():
         agent_id="test_agent",
     )
     ctx = MockJobContext()
+    session = make_mock_session()
 
     items = [
         user_msg("What's available?", created_at=session_start),
@@ -259,7 +432,7 @@ def test_to_create_call_request_with_function_calls():
         agent_msg("I found two available slots.", created_at=session_start + 1),
     ]
 
-    payload = to_create_call_request(state, items, config, ctx)
+    payload = to_create_call_request(session, state, items, config, ctx)
 
     segments = payload["transcript_with_tool_calls"]
     assert len(segments) >= 3
@@ -290,10 +463,11 @@ def test_to_create_call_request_with_sip_detection():
         call_type=None,  # Auto-detect
     )
     ctx = MockJobContext()
+    session = make_mock_session()
 
     items = [user_msg("Hello from phone", created_at=100.0)]
 
-    payload = to_create_call_request(state, items, config, ctx)
+    payload = to_create_call_request(session, state, items, config, ctx)
 
     assert payload["call_type"] == "phone_call"
     assert payload["caller_phone_number"] == "+1234567890"
@@ -312,15 +486,16 @@ def test_to_create_call_request_with_extra_metadata():
         extra_metadata={"custom_field": "custom_value", "team": "support"},
     )
     ctx = MockJobContext()
+    session = make_mock_session()
 
     items = [user_msg("Hi", created_at=100.0)]
 
-    payload = to_create_call_request(state, items, config, ctx)
+    payload = to_create_call_request(session, state, items, config, ctx)
 
     meta = payload["general_meta_data_raw"]
     assert meta["custom_field"] == "custom_value"
     assert meta["team"] == "support"
-    assert "usage_summary" in meta
+    assert "usage_token" in meta
 
 
 def test_to_create_call_request_with_error():
@@ -335,10 +510,11 @@ def test_to_create_call_request_with_error():
         agent_id="test_agent",
     )
     ctx = MockJobContext()
+    session = make_mock_session()
 
     items = [user_msg("Hi", created_at=100.0)]
 
-    payload = to_create_call_request(state, items, config, ctx)
+    payload = to_create_call_request(session, state, items, config, ctx)
 
     assert payload["call_successful"] is False
     assert payload["call_status"] == "error"
@@ -358,10 +534,11 @@ def test_to_create_call_request_with_shutdown_reason():
         agent_id="test_agent",
     )
     ctx = MockJobContext()
+    session = make_mock_session()
 
     items = [user_msg("Hi", created_at=100.0)]
 
-    payload = to_create_call_request(state, items, config, ctx)
+    payload = to_create_call_request(session, state, items, config, ctx)
 
     assert payload["disconnection_reason"] == "user_hang_up"
 
@@ -414,8 +591,9 @@ def test_to_create_call_request_restaurant_booking_scenario():
         agent_id="booking_agent",
     )
     ctx = MockJobContext(room_name="console")
+    session = make_mock_session()
 
-    payload = to_create_call_request(state, items, config, ctx)
+    payload = to_create_call_request(session, state, items, config, ctx)
 
     # Validate basic structure
     assert payload["call_id"]
@@ -458,4 +636,4 @@ def test_to_create_call_request_restaurant_booking_scenario():
     # Verify metadata
     assert payload["general_meta_data_raw"]["livekit_job_id"]
     assert payload["general_meta_data_raw"]["livekit_room_name"] == "console"
-    assert "usage_summary" in payload["general_meta_data_raw"]
+    assert "usage_token" in payload["general_meta_data_raw"]
