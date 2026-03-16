@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
     from livekit.agents.metrics import UsageSummary
 
-logger = logging.getLogger("livekit_agents_tuner")
+logger = logging.getLogger("tuner")
 
 _RECORDING_URL_PLACEHOLDER = "pending"
 
@@ -193,16 +193,27 @@ class TunerPlugin:
 
         payload["recording_url"] = recording_url
 
-        # Submit with timeout guard
+        # Submit with timeout guard.
+        # Budget = per-request timeout × attempts + cumulative backoff delays.
+        # Backoff delays in client.py: 2^0 + 2^1 + ... + 2^(n-1) seconds, plus up to
+        # 0.5 s jitter per retry, where n = max_retries.
+        _max_jitter_s = 0.5
+        backoff_budget = (
+            sum(2.0**i for i in range(self._config.max_retries))
+            + _max_jitter_s * self._config.max_retries
+        )
+        total_timeout = (
+            self._config.timeout_seconds * (self._config.max_retries + 1) + backoff_budget
+        )
         try:
             await asyncio.wait_for(
                 submit_call(payload, self._config),
-                timeout=self._config.timeout_seconds * (self._config.max_retries + 1),
+                timeout=total_timeout,
             )
         except asyncio.TimeoutError:
             logger.error(
                 "Tuner submission timed out after %.1fs for call_id=%s",
-                self._config.timeout_seconds * (self._config.max_retries + 1),
+                total_timeout,
                 payload.get("call_id"),
             )
         except Exception:

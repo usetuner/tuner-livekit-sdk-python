@@ -10,7 +10,7 @@ import aiohttp
 if TYPE_CHECKING:
     from .config import TunerConfig
 
-logger = logging.getLogger("livekit_agents_tuner.client")
+logger = logging.getLogger("tuner.client")
 
 # HTTP status codes that warrant a retry
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
@@ -39,26 +39,26 @@ async def submit_call(payload: dict, config: "TunerConfig") -> None:
 
     last_exc: Exception | None = None
 
-    for attempt in range(config.max_retries + 1):
-        if attempt > 0:
-            delay = float(2 ** (attempt - 1)) + random.uniform(0, 0.5)
-            logger.warning(
-                "Tuner submission attempt %d/%d failed, retrying in %.1fs",
-                attempt,
-                config.max_retries + 1,
-                delay,
-            )
-            await asyncio.sleep(delay)
+    async with aiohttp.ClientSession() as http_session:
+        for attempt in range(config.max_retries + 1):
+            if attempt > 0:
+                delay = float(2 ** (attempt - 1)) + random.uniform(0, 0.5)
+                logger.warning(
+                    "Tuner submission attempt %d/%d failed, retrying in %.1fs",
+                    attempt,
+                    config.max_retries + 1,
+                    delay,
+                )
+                await asyncio.sleep(delay)
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            try:
+                async with http_session.post(
                     url,
                     headers=headers,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=config.timeout_seconds),
                 ) as resp:
-                    if resp.status == 201:
+                    if resp.status in (200, 201):
                         try:
                             data = await resp.json()
                         except Exception:
@@ -88,10 +88,10 @@ async def submit_call(payload: dict, config: "TunerConfig") -> None:
                     )
                     return
 
-        except aiohttp.ClientError as exc:
-            last_exc = exc
-        except asyncio.TimeoutError as exc:
-            last_exc = exc
+            except aiohttp.ClientError as exc:
+                last_exc = exc
+            except asyncio.TimeoutError as exc:
+                last_exc = exc
 
     logger.error(
         "Tuner submission failed after %d attempt(s) for call_id=%s: %s",

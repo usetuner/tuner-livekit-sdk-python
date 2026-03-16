@@ -1,8 +1,8 @@
-"""Tests for livekit_agents_tuner.config"""
+"""Tests for tuner.config"""
 
 import pytest
 
-from livekit_agents_tuner.config import TunerConfig
+from tuner.config import TunerConfig
 
 
 def test_from_env_reads_env_vars(monkeypatch):

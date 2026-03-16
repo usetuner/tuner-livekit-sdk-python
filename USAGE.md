@@ -11,7 +11,7 @@ export TUNER_AGENT_ID="my-agent"
 ```
 
 ```python
-from livekit_agents_tuner import TunerPlugin
+from tuner import TunerPlugin
 
 async def entrypoint(ctx: JobContext):
     session = AgentSession(...)
@@ -107,7 +107,7 @@ def calculate_cost(usage) -> float:
     llm_cost  = usage.llm_prompt_tokens     * 0.000_003
     llm_cost += usage.llm_completion_tokens * 0.000_015
     tts_cost  = usage.tts_characters_count  * 0.000_030
-    stt_cost  = usage.stt_audio_duration_s  * 0.000_006
+    stt_cost  = usage.stt_audio_duration    * 0.000_006
     return llm_cost + tts_cost + stt_cost
 
 TunerPlugin(session, ctx, cost_calculator=calculate_cost)
@@ -138,7 +138,7 @@ TunerPlugin(
 TunerPlugin(
     session, ctx,
     timeout_seconds=15.0,   # default: 30.0
-    max_retries=5,          # default: 3  (exponential back-off on 5xx)
+    max_retries=5,          # default: 3  (retries on 5xx / 429 / network errors)
 )
 ```
 
@@ -163,9 +163,9 @@ TunerPlugin(
 
 ```python
 import os
-from livekit_agents_tuner import TunerPlugin
+from tuner import TunerPlugin
 
-async def calculate_cost(usage) -> float:
+def calculate_cost(usage) -> float:
     return (
         usage.llm_prompt_tokens     * 0.000_003
         + usage.llm_completion_tokens * 0.000_015

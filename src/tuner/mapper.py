@@ -11,12 +11,11 @@ if TYPE_CHECKING:
     from .collector import SessionState
     from .config import TunerConfig
 
-logger = logging.getLogger("livekit_agents_tuner.mapper")
+logger = logging.getLogger("tuner.mapper")
 
 def map_history_to_segments(
     items: list[Any],
     session_start_ts: float = 0.0,
-    session_end_ts: float | None = None,
 ) -> list[dict]:
     """
     Map LiveKit ChatContext items to Tuner PublicTranscriptSegment dicts.
@@ -25,9 +24,6 @@ def map_history_to_segments(
         items:            List of ChatContext items (ChatMessage, FunctionCall, etc.).
         session_start_ts: Session start time (epoch seconds). Used to compute
                           start_ms/end_ms relative to session start.
-        session_end_ts:   Session end time (epoch seconds). Used as the end_ms
-                          for the last turn. Falls back to the last message's
-                          created_at if not provided.
 
     Roles produced:
       - user          → ChatMessage(role="user")
@@ -67,7 +63,7 @@ def map_history_to_segments(
                     "interrupted": item.interrupted,
                     "llm_node_ttft": item.metrics.get("llm_node_ttft"),
                     "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
-                    "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
+                    "stt_node_ttfb": item.metrics.get("transcription_delay"),
                     "e2e_latency": item.metrics.get("e2e_latency"),
                     "transcript_confidence": item.transcript_confidence,
                 },
@@ -75,12 +71,11 @@ def map_history_to_segments(
             segments.append(seg)
 
         elif isinstance(item, (FunctionCall, FunctionCallOutput)):
-            tool_payload = {
+            tool_payload: dict[str, Any] = {
                 "name": item.name,
-                "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
                 "request_id": item.call_id,
             }
-            
+
             if isinstance(item, FunctionCall):
                 role = "agent_function"
                 try:
@@ -94,11 +89,12 @@ def map_history_to_segments(
                 if item.is_error:
                     tool_payload["error"] = item.output
                 else:
-                    tool_payload["output"] = item.output
-            
+                    tool_payload["result"] = {"value": item.output}
+
             segments.append(
                 {
                     "role": role,
+                    "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
                     "tool": tool_payload,
                 }
             )
@@ -120,9 +116,11 @@ def build_plain_transcript(items: list[Any]) -> str:
 
     return "\n".join(lines)
 
+
 def _model_name(component: Any) -> str | None:
     # Handles None or components without a .model attribute
     return getattr(component, "model", None)
+
 
 def to_create_call_request(
     session: "AgentSession",
@@ -169,7 +167,6 @@ def to_create_call_request(
     segments = map_history_to_segments(
         history_items,
         session_start_ts=state.start_timestamp,
-        session_end_ts=end_ts,
     )
     plain_transcript = build_plain_transcript(history_items)
 
@@ -182,16 +179,20 @@ def to_create_call_request(
     }
 
     ai_models = {
-        "stt_model": _model_name(getattr(session, "stt", None)),
-        "llm_model": _model_name(getattr(session, "llm", None)),
-        "tts_model": _model_name(getattr(session, "tts", None)),
+        k: v
+        for k, v in {
+            "stt_model": _model_name(getattr(session, "stt", None)),
+            "llm_model": _model_name(getattr(session, "llm", None)),
+            "tts_model": _model_name(getattr(session, "tts", None)),
+        }.items()
+        if v is not None
     }
 
     general_meta: dict = {
         "livekit_job_id": str(ctx.job.id),
         "livekit_room_name": ctx.room.name,
         "usage_token": usage_dict,
-        "ai_models":ai_models,
+        "ai_models": ai_models,
     }
     if config.extra_metadata:
         general_meta.update(config.extra_metadata)
@@ -223,7 +224,6 @@ def to_create_call_request(
     if state.shutdown_reason:
         payload["disconnection_reason"] = state.shutdown_reason
 
-    if state.close_error is not None:
-        payload["call_successful"] = False
+    payload["call_successful"] = state.close_error is None
 
     return payload

@@ -1,12 +1,12 @@
-"""Tests for livekit_agents_tuner.client"""
+"""Tests for tuner.client"""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from livekit_agents_tuner.client import _RETRY_STATUSES, submit_call
-from livekit_agents_tuner.config import TunerConfig
+from tuner.client import _RETRY_STATUSES, submit_call
+from tuner.config import TunerConfig
 
 
 @pytest.fixture

@@ -4,7 +4,7 @@ livekit-agents-tuner
 Automatically ingest LiveKit Agents session data into the Tuner observability API.
 
 Quickstart (2 lines):
-    from livekit_agents_tuner import TunerPlugin
+    from tuner import TunerPlugin
 
     TunerPlugin(session, ctx)  # after creating AgentSession
 

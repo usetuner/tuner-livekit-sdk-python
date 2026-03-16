@@ -35,7 +35,7 @@ class TunerConfig:
         agent_id: str | None = None,
         base_url: str | None = None,
         call_type: str | None = None,
-        recording_url_resolver: Callable | None = None,
+        recording_url_resolver: Callable[[str, str], Awaitable[str | None]] | None = None,
         cost_calculator: Callable[[UsageSummary], float] | None = None,
         extra_metadata: dict | None = None,
         enabled: bool = True,
@@ -67,7 +67,13 @@ class TunerConfig:
                     "TUNER_WORKSPACE_ID is required. "
                     "Set the TUNER_WORKSPACE_ID env var or pass workspace_id= to TunerPlugin."
                 )
-            workspace_id = int(ws_str)
+            try:
+                workspace_id = int(ws_str)
+            except ValueError:
+                raise ValueError(
+                    f"TUNER_WORKSPACE_ID must be an integer, got '{ws_str}'. "
+                    "Set the TUNER_WORKSPACE_ID env var or pass workspace_id= to TunerPlugin."
+                ) from None
 
         resolved_agent_id = agent_id or os.environ.get("TUNER_AGENT_ID", "")
         if not resolved_agent_id:
