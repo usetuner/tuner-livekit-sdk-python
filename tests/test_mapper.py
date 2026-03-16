@@ -1,4 +1,4 @@
-"""Tests for livekit_agents_tuner.mapper"""
+"""Tests for tuner.mapper"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import pytest
 from livekit.agents import AgentSession
 from livekit.agents.llm.chat_context import ChatMessage, FunctionCall, FunctionCallOutput
 
-from livekit_agents_tuner.mapper import (
+from tuner.mapper import (
     map_history_to_segments,
     to_create_call_request,
 )
@@ -370,8 +370,8 @@ def make_mock_session(
 
 def test_to_create_call_request_basic():
     """Test basic payload generation with web_call type."""
-    from livekit_agents_tuner.collector import SessionState
-    from livekit_agents_tuner.config import TunerConfig
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
 
     session_start = 1_700_000_000.0
     session_end = 1_700_000_010.0
@@ -408,8 +408,8 @@ def test_to_create_call_request_basic():
 
 def test_to_create_call_request_with_function_calls():
     """Test payload with function calls extracted from history."""
-    from livekit_agents_tuner.collector import SessionState
-    from livekit_agents_tuner.config import TunerConfig
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
 
     session_start = 1_700_000_000.0
 
@@ -452,8 +452,8 @@ def test_to_create_call_request_with_function_calls():
 
 def test_to_create_call_request_with_sip_detection():
     """Test that is_sip flag correctly sets call_type to 'phone_call'."""
-    from livekit_agents_tuner.collector import SessionState
-    from livekit_agents_tuner.config import TunerConfig
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
 
     state = SessionState(start_timestamp=100.0, end_timestamp=110.0, is_sip=True, caller_phone_number="+1234567890")
     config = TunerConfig(
@@ -475,8 +475,8 @@ def test_to_create_call_request_with_sip_detection():
 
 def test_to_create_call_request_with_extra_metadata():
     """Test that extra_metadata is merged into general_meta_data_raw."""
-    from livekit_agents_tuner.collector import SessionState
-    from livekit_agents_tuner.config import TunerConfig
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
 
     state = SessionState(start_timestamp=100.0, end_timestamp=110.0)
     config = TunerConfig(
@@ -500,8 +500,8 @@ def test_to_create_call_request_with_extra_metadata():
 
 def test_to_create_call_request_with_error():
     """Test that close_error is reflected in call_successful field."""
-    from livekit_agents_tuner.collector import SessionState
-    from livekit_agents_tuner.config import TunerConfig
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
 
     state = SessionState(start_timestamp=100.0, end_timestamp=110.0, close_error=RuntimeError("Connection failed"))
     config = TunerConfig(
@@ -522,8 +522,8 @@ def test_to_create_call_request_with_error():
 
 def test_to_create_call_request_with_shutdown_reason():
     """Test that shutdown_reason appears in payload."""
-    from livekit_agents_tuner.collector import SessionState
-    from livekit_agents_tuner.config import TunerConfig
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
 
     state = SessionState(
         start_timestamp=100.0, end_timestamp=110.0, shutdown_reason="user_hang_up"
@@ -548,8 +548,8 @@ def test_to_create_call_request_restaurant_booking_scenario():
     Test with a representative conversation from the provided logs.
     This simulates a restaurant booking reservation scenario.
     """
-    from livekit_agents_tuner.collector import SessionState
-    from livekit_agents_tuner.config import TunerConfig
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
 
     session_start = 1_772_724_643.0
 

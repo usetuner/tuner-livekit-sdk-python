@@ -45,4 +45,4 @@ testpaths = ["tests"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"livekit_agents_tuner" = ["py.typed"]
+"tuner" = ["py.typed"]

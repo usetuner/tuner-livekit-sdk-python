@@ -10,7 +10,7 @@ import aiohttp
 if TYPE_CHECKING:
     from .config import TunerConfig
 
-logger = logging.getLogger("livekit_agents_tuner.client")
+logger = logging.getLogger("tuner.client")
 
 # HTTP status codes that warrant a retry
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})

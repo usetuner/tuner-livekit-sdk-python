@@ -1,11 +1,11 @@
-"""Tests for livekit_agents_tuner.collector"""
+"""Tests for tuner.collector"""
 
 import time
 from unittest.mock import MagicMock
 
 import pytest
 
-from livekit_agents_tuner.collector import SessionState
+from tuner.collector import SessionState
 
 
 def test_initial_state():

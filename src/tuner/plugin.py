@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
     from livekit.agents.metrics import UsageSummary
 
-logger = logging.getLogger("livekit_agents_tuner")
+logger = logging.getLogger("tuner")
 
 _RECORDING_URL_PLACEHOLDER = "pending"
 

@@ -11,7 +11,7 @@ export TUNER_AGENT_ID="my-agent"
 ```
 
 ```python
-from livekit_agents_tuner import TunerPlugin
+from tuner import TunerPlugin
 
 async def entrypoint(ctx: JobContext):
     session = AgentSession(...)
@@ -163,7 +163,7 @@ TunerPlugin(
 
 ```python
 import os
-from livekit_agents_tuner import TunerPlugin
+from tuner import TunerPlugin
 
 def calculate_cost(usage) -> float:
     return (

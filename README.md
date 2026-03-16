@@ -21,7 +21,7 @@ export TUNER_AGENT_ID="my-agent"
 Then drop the plugin in right after creating your `AgentSession`:
 
 ```python
-from livekit_agents_tuner import TunerPlugin
+from tuner import TunerPlugin
 
 async def entrypoint(ctx: JobContext):
     session = AgentSession(...)
@@ -145,7 +145,7 @@ TunerPlugin(
 ```python
 import os
 from livekit.agents import JobContext, AgentSession
-from livekit_agents_tuner import TunerPlugin
+from tuner import TunerPlugin
 
 
 def calculate_cost(usage) -> float:

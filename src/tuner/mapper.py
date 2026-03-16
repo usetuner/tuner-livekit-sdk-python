@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .collector import SessionState
     from .config import TunerConfig
 
-logger = logging.getLogger("livekit_agents_tuner.mapper")
+logger = logging.getLogger("tuner.mapper")
 
 def map_history_to_segments(
     items: list[Any],
