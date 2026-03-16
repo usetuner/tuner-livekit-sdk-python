@@ -115,7 +115,6 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
     segments = map_history_to_segments(
         items,
         session_start_ts=1772730379.491848,
-        session_end_ts=1772730380.521417,
     )
 
     # FunctionCall and FunctionCallOutput each produce their own segment now
@@ -146,7 +145,7 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
     assert res_tool["name"] == "check_table_availability"
     assert res_tool["request_id"] == "call_3DxJTGulkeLIKVqABS3oe2Ij"
     assert res_tool["is_error"] is False
-    assert res_tool["output"] == "Table is available on 2024-04-28 at 08:00 for 2 guests."
+    assert res_tool["result"]["value"] == "Table is available on 2024-04-28 at 08:00 for 2 guests."
     expected_result_ms = max(0, int((items[2].created_at - 1772730379.491848) * 1000))
     assert segments[2]["start_ms"] == expected_result_ms
     assert "start_ms" not in res_tool
@@ -293,7 +292,7 @@ def test_function_call_output_metadata_fields():
     assert ok["tool"]["name"] == "book_table"
     assert ok["tool"]["request_id"] == "call_abc123"
     assert ok["tool"]["is_error"] is False
-    assert ok["tool"]["output"] == "Booking confirmed for 4 guests on 2024-06-15 at 19:00."
+    assert ok["tool"]["result"]["value"] == "Booking confirmed for 4 guests on 2024-06-15 at 19:00."
     assert "error" not in ok["tool"]
     assert "start_ms" not in ok["tool"]
 
@@ -305,7 +304,7 @@ def test_function_call_output_metadata_fields():
     assert err["tool"]["request_id"] == "call_xyz999"
     assert err["tool"]["is_error"] is True
     assert err["tool"]["error"] == "No availability on that date."
-    assert "output" not in err["tool"]
+    assert "result" not in err["tool"]
     assert "start_ms" not in err["tool"]
 
 
@@ -446,7 +445,7 @@ def test_to_create_call_request_with_function_calls():
     # Verify function output is a separate agent_result segment
     result_segments = [s for s in segments if s["role"] == "agent_result"]
     assert len(result_segments) == 1
-    assert result_segments[0]["tool"]["output"] == "Two slots available"
+    assert result_segments[0]["tool"]["result"]["value"] == "Two slots available"
     assert result_segments[0]["tool"]["is_error"] is False
 
 
@@ -625,7 +624,7 @@ def test_to_create_call_request_restaurant_booking_scenario():
     # Verify function output is a separate agent_result segment
     result_segments = [s for s in segments if s["role"] == "agent_result"]
     assert len(result_segments) == 1
-    assert "2024-06-13" in result_segments[0]["tool"]["output"]
+    assert "2024-06-13" in result_segments[0]["tool"]["result"]["value"]
 
     # Verify transcript
     assert "transcript" in payload
