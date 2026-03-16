@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 from livekit.agents.metrics import UsageCollector, UsageSummary
 
@@ -15,7 +15,7 @@ class SessionState:
     end_timestamp: float | None = None
     is_sip: bool = False
     caller_phone_number: str | None = None
-    close_error: Any = None
+    close_error: Optional[Exception] = None
     shutdown_reason: str = ""
     _usage_collector: UsageCollector = field(default_factory=UsageCollector, repr=False)
 
@@ -23,7 +23,7 @@ class SessionState:
         """Feed an AgentMetrics event into the usage collector."""
         self._usage_collector.collect(metrics)
 
-    def record_close(self, error: Any) -> None:
+    def record_close(self, error: Optional[Exception]) -> None:
         """Record the session close error (None if clean close)."""
         self.close_error = error
 
