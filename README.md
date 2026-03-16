@@ -1,11 +1,11 @@
-# livekit-agents-tuner
+# tuner-livekit-sdk
 
 Automatically ingest [LiveKit Agents](https://github.com/livekit/agents) session data into the [Tuner](https://usetuner.ai) observability API.
 
 ## Installation
 
 ```bash
-pip install livekit-agents-tuner
+pip install tuner-livekit-sdk
 ```
 
 ## Quickstart
