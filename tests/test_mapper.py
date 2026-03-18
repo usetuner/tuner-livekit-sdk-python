@@ -210,7 +210,7 @@ def test_chat_message_metadata_fields():
     assert u["metadata"]["interrupted"] is False
     assert u["metadata"]["transcript_confidence"] == pytest.approx(0.987)
     # stt_node_ttfb is sourced from transcription_delay (user-only metric)
-    assert u["metadata"]["stt_node_ttfb"] == pytest.approx(0.21)
+    assert u["metadata"]["stt_node_ttfb"] == 210
     assert u["metadata"]["llm_node_ttft"] is None
     assert u["metadata"]["tts_node_ttfb"] is None
     assert u["metadata"]["e2e_latency"] is None
@@ -224,9 +224,9 @@ def test_chat_message_metadata_fields():
     assert a["metadata"]["id"] == "agent_id_002"
     assert a["metadata"]["interrupted"] is True
     assert a["metadata"]["transcript_confidence"] is None
-    assert a["metadata"]["llm_node_ttft"] == pytest.approx(0.45)
-    assert a["metadata"]["tts_node_ttfb"] == pytest.approx(0.32)
-    assert a["metadata"]["e2e_latency"] == pytest.approx(1.1)
+    assert a["metadata"]["llm_node_ttft"] == 450
+    assert a["metadata"]["tts_node_ttfb"] == 320
+    assert a["metadata"]["e2e_latency"] == 1100
     # Agent messages have no transcription_delay, so stt_node_ttfb is None
     assert a["metadata"]["stt_node_ttfb"] is None
 

@@ -2,7 +2,7 @@
 
 Automatically ingest [LiveKit Agents](https://github.com/livekit/agents) session data into the [Tuner](https://usetuner.ai) observability API.
 
-## Installation
+## Installation of the Library into your Livekit project
 
 ```bash
 pip install tuner-livekit-sdk
@@ -189,3 +189,7 @@ async def entrypoint(ctx: JobContext):
 ## License
 
 MIT
+
+## Installation dependencies to build the library
+uv sync --dev
+source .venv/bin/activate
