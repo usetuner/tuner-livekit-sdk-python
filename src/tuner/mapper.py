@@ -13,6 +13,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("tuner.mapper")
 
+
+def _seconds_to_milliseconds(value: Any) -> int | None:
+    if value is None:
+        return None
+
+    try:
+        return int(value * 1000)
+    except (TypeError, ValueError):
+        logger.debug("Could not convert metric value %r to milliseconds", value)
+        return None
+
 def map_history_to_segments(
     items: list[Any],
     session_start_ts: float = 0.0,
@@ -61,10 +72,10 @@ def map_history_to_segments(
                 "metadata": {
                     "id": item.id,
                     "interrupted": item.interrupted,
-                    "llm_node_ttft": item.metrics.get("llm_node_ttft"),
-                    "tts_node_ttfb": item.metrics.get("tts_node_ttfb"),
-                    "stt_node_ttfb": item.metrics.get("transcription_delay"),
-                    "e2e_latency": item.metrics.get("e2e_latency"),
+                    "llm_node_ttft": _seconds_to_milliseconds(item.metrics.get("llm_node_ttft")),
+                    "tts_node_ttfb": _seconds_to_milliseconds(item.metrics.get("tts_node_ttfb")),
+                    "stt_node_ttfb": _seconds_to_milliseconds(item.metrics.get("transcription_delay")),
+                    "e2e_latency": _seconds_to_milliseconds(item.metrics.get("e2e_latency")),
                     "transcript_confidence": item.transcript_confidence,
                 },
             }
