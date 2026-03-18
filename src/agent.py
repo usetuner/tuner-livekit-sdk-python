@@ -18,7 +18,7 @@ from livekit.agents import (
 )
 from livekit.plugins import noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
-from tuner_livekit_sdk import TunerPlugin, TunerConfig
+from tuner import TunerPlugin
 
 logger = logging.getLogger("agent")
 

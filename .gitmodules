@@ -1,0 +1,3 @@
+[submodule "tuner-livekit-sdk"]
+	path = tuner-livekit-sdk
+	url = https://github.com/usetuner/tuner-livekit-sdk-python.git

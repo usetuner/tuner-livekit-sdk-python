@@ -3,49 +3,48 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tuner-livekit-sdk"
-version = "0.1.1"
-description = "Automatically ingest LiveKit Agents session data into the Tuner observability API"
-readme = "README.md"
-license = "MIT"
-authors = [
-    { name = "usetuner", email = "support@usetuner.ai" },
-]
-requires-python = ">=3.10"
-keywords = ["livekit", "agents", "voice-ai", "observability", "analytics", "tuner"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Typing :: Typed",
-]
-dependencies = [
-    "aiohttp>=3.9",
-    "livekit-agents>=1.4",
-]
+name = "agent-starter-python"
+version = "1.0.0"
+description = "Simple voice AI assistant built with LiveKit Agents for Python"
+requires-python = ">=3.10, <3.15"
 
-[project.urls]
-Homepage     = "https://usetuner.ai"
-Documentation = "https://docs.usetuner.ai"
+dependencies = [
+    "livekit-agents[silero,turn-detector]~=1.4",
+    "livekit-plugins-noise-cancellation~=0.2",
+    "python-dotenv",
+    "soundflare",
+    "tuner-livekit-sdk",
+]
 
 [dependency-groups]
 dev = [
     "pytest",
     "pytest-asyncio",
+    "ruff",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.uv.sources]
+tuner-livekit-sdk = { path = "tuner-livekit-sdk", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.ruff]
+line-length = 88
+target-version = "py39"
 
-[tool.setuptools.package-data]
-"tuner" = ["py.typed"]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "A", "C4", "UP", "SIM", "RUF"]
+ignore = ["E501"]  # Line too long (handled by formatter)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
