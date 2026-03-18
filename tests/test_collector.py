@@ -1,9 +1,6 @@
 """Tests for tuner.collector"""
 
 import time
-from unittest.mock import MagicMock
-
-import pytest
 
 from tuner.collector import SessionState
 
