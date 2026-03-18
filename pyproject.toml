@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tuner-livekit-sdk"
-version = "0.1.1"
+version = "0.1.2"
 description = "Automatically ingest LiveKit Agents session data into the Tuner observability API"
 readme = "README.md"
 license = "MIT"
@@ -37,6 +37,8 @@ Documentation = "https://docs.usetuner.ai"
 dev = [
     "pytest",
     "pytest-asyncio",
+    "build",
+    "twine",
 ]
 
 [tool.pytest.ini_options]

@@ -193,3 +193,9 @@ MIT
 ## Installation dependencies to build the library
 uv sync --dev
 source .venv/bin/activate
+
+
+## Publish to Pypi
+pip install build twine
+python -m build
+twine upload dist/*
