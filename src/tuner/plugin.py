@@ -94,6 +94,7 @@ class TunerPlugin:
         self._ctx = ctx
         self._state = SessionState()
         self._config: TunerConfig | None = None
+        self._submitted = False
 
         if not enabled:
             logger.debug("TunerPlugin is disabled; no data will be sent to Tuner")
@@ -139,6 +140,7 @@ class TunerPlugin:
         @self._session.on("close")
         def _on_close(ev) -> None:
             state.record_close(ev.error)
+            asyncio.ensure_future(self._on_shutdown("session_closed"))
 
         @self._ctx.room.on("participant_connected")
         def _on_participant(participant) -> None:
@@ -154,8 +156,9 @@ class TunerPlugin:
         self._ctx.add_shutdown_callback(self._on_shutdown)
 
     async def _on_shutdown(self, reason: str) -> None:
-        if self._config is None:
+        if self._config is None or self._submitted:
             return
+        self._submitted = True
 
         self._state.finalize(reason)
 
