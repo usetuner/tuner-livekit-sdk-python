@@ -524,9 +524,9 @@ def test_to_create_call_request_with_shutdown_reason():
     from tuner.collector import SessionState
     from tuner.config import TunerConfig
 
-    state = SessionState(
-        start_timestamp=100.0, end_timestamp=110.0, shutdown_reason="user_hang_up"
-    )
+    state = SessionState(start_timestamp=100.0, end_timestamp=110.0)
+    state.set_shutdown_reason("user_hang_up")
+    
     config = TunerConfig(
         api_key="test_key",
         workspace_id=123,
