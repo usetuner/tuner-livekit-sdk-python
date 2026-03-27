@@ -16,7 +16,7 @@ class SessionState:
     is_sip: bool = False
     caller_phone_number: str | None = None
     close_error: Optional[Exception] = None
-    shutdown_reason: str = ""
+    _shutdown_reason: str = field(default="", init=False, repr=False)
     _usage_collector: UsageCollector = field(default_factory=UsageCollector, repr=False)
 
     def record_metrics(self, metrics: Any) -> None:
@@ -32,10 +32,19 @@ class SessionState:
         self.is_sip = True
         self.caller_phone_number = phone_number
 
+    @property
+    def shutdown_reason(self) -> str:
+        return self._shutdown_reason
+
+    def set_shutdown_reason(self, reason: str) -> None:
+        """Write-once: first meaningful value wins."""
+        if not self._shutdown_reason and reason:
+            self._shutdown_reason = reason
+
     def finalize(self, reason: str) -> None:
         """Seal the state at shutdown time."""
         self.end_timestamp = time.time()
-        self.shutdown_reason = reason
+        self.set_shutdown_reason(reason)
 
     def get_usage_summary(self) -> UsageSummary:
         return self._usage_collector.get_summary()
