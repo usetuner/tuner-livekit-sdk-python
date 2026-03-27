@@ -89,7 +89,7 @@ TunerPlugin(session, ctx, recording_url_resolver=egress_resolver)
 
 ### Cost calculation
 
-Provide a callable that receives a `UsageSummary` and returns the call cost in USD:
+Provide a callable that receives a `UsageSummary` and returns the call cost in USD cents:
 
 ```python
 def calculate_cost(usage) -> float:
@@ -146,7 +146,6 @@ TunerPlugin(
 import os
 from livekit.agents import JobContext, AgentSession
 from tuner import TunerPlugin
-
 
 def calculate_cost(usage) -> float:
     return (
