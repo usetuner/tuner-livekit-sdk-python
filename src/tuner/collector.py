@@ -3,9 +3,16 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
+from enum import StrEnum
 
 from livekit.agents.metrics import UsageCollector, UsageSummary
 
+class DisconnectReason(StrEnum):
+    """Standard disconnection reasons detected by the SDK."""
+
+    USER_HANGUP = "user_hangup"
+    AGENT_HANGUP = "agent_hangup"
+    ERROR = "error"
 
 @dataclass
 class SessionState:
