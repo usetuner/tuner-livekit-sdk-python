@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Callable
 
 from .client import submit_call
-from .collector import SessionState
+from .collector import DisconnectReason, SessionState
 from .config import TunerConfig
 from .mapper import to_create_call_request
 
@@ -139,6 +139,14 @@ class TunerPlugin:
         @self._session.on("close")
         def _on_close(ev) -> None:
             state.record_close(ev.error)
+            if ev.error is not None:
+                state.set_shutdown_reason(DisconnectReason.ERROR)
+
+        @self._ctx.room.on("participant_disconnected")
+        def _on_participant_disconnected(participant) -> None:
+            if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD:
+                if participant.disconnect_reason == rtc.DisconnectReason.CLIENT_INITIATED:
+                    state.set_shutdown_reason(DisconnectReason.USER_HANGUP)
 
         @self._ctx.room.on("participant_connected")
         def _on_participant(participant) -> None:
@@ -158,6 +166,9 @@ class TunerPlugin:
             return
 
         self._state.finalize(reason)
+
+        # Fallback — only sets if nothing else did (write-once)
+        self._state.set_shutdown_reason(DisconnectReason.USER_HANGUP)
 
         # Resolve recording URL — always required by Tuner.
         # Falls back to _default_recording_url_resolver which returns a placeholder
