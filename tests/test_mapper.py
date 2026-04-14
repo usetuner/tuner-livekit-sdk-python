@@ -636,3 +636,38 @@ def test_to_create_call_request_restaurant_booking_scenario():
     assert payload["general_meta_data_raw"]["livekit_job_id"]
     assert payload["general_meta_data_raw"]["livekit_room_name"] == "console"
     assert "usage_token" in payload["general_meta_data_raw"]
+
+def test_user_segment_missing_speaking_timestamps_falls_back_to_created_at():
+    """
+    When started_speaking_at / stopped_speaking_at are absent (e.g. user spoke
+    mid-agent-turn during preemptive generation), start_ms and end_ms must NOT
+    be 0 — they should be derived from created_at instead.
+    """
+    session_start = 1_776_088_244.0
+
+    item = ChatMessage(
+        id="item_d8c99f3d8c03",
+        role="user",
+        content=["It's a follow-up visit."],
+        interrupted=False,
+        transcript_confidence=0.9812012,
+        created_at=session_start + 74.0,  # ~74s into the session
+        metrics={
+            # No started_speaking_at or stopped_speaking_at — the problematic case
+            "transcription_delay": 0,
+            "on_user_turn_completed_delay": 1.6e-06,
+        },
+    )
+
+    segments = map_history_to_segments([item], session_start_ts=session_start)
+
+    assert len(segments) == 1
+    seg = segments[0]
+
+    expected_ms = int((item.created_at - session_start) * 1000)  # 74000
+
+    assert seg["start_ms"] != 0, "start_ms should not be 0 when speaking timestamps are absent"
+    assert seg["end_ms"] != 0, "end_ms should not be 0 when speaking timestamps are absent"
+    assert seg["start_ms"] == expected_ms
+    assert seg["end_ms"] == expected_ms  # start == end is acceptable, just not 0
+

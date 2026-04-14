@@ -62,7 +62,11 @@ def map_history_to_segments(
             role = "user" if item.role == "user" else "agent"
             text = item.text_content or ""
 
-            started = item.metrics.get("started_speaking_at", session_start_ts)
+            started = item.metrics.get("started_speaking_at")
+            # started_speaking_at may be absent when the user speaks mid-agent-turn
+            # (e.g. during preemptive generation); fall back to created_at which is always set
+            if started is None:
+                started = item.created_at or session_start_ts
             stopped = item.metrics.get("stopped_speaking_at", started)
             seg: dict = {
                 "role": role,
