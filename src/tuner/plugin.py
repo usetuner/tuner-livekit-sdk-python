@@ -67,6 +67,7 @@ class TunerPlugin:
             call_type="phone_call",          # override auto-detection
             recording_url_resolver=my_fn,    # async (room, job_id) -> str | None
             cost_calculator=my_cost_fn,      # (UsageSummary) -> float (cost in dollars)
+            sip_correlation_id=sip_id,       # canonical SIP correlation identifier
             extra_metadata={"env": "prod"},
             max_retries=3,
             timeout_seconds=30,
@@ -85,6 +86,7 @@ class TunerPlugin:
         call_type: str | None = None,
         recording_url_resolver: Callable | None = None,
         cost_calculator: Callable[[UsageSummary], float] | None = None,
+        sip_correlation_id: str | None = None,
         extra_metadata: dict | None = None,
         enabled: bool = True,
         timeout_seconds: float = 30.0,
@@ -108,6 +110,7 @@ class TunerPlugin:
                 call_type=call_type,
                 recording_url_resolver=recording_url_resolver,
                 cost_calculator=cost_calculator,
+                sip_correlation_id=sip_correlation_id,
                 extra_metadata=extra_metadata,
                 enabled=enabled,
                 timeout_seconds=timeout_seconds,
@@ -151,12 +154,27 @@ class TunerPlugin:
         @self._ctx.room.on("participant_connected")
         def _on_participant(participant) -> None:
             if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
-                phone = (
-                    participant.attributes.get("sip.phoneNumber")
-                    or participant.attributes.get("phoneNumber")
-                    or participant.attributes.get("phone_number")
-                )
-                state.record_sip_participant(phone)
+                self._capture_sip_participant(participant)
+
+    def _capture_sip_participant(self, participant) -> None:
+        attributes = dict(getattr(participant, "attributes", {}) or {})
+        phone = (
+            attributes.get("sip.phoneNumber")
+            or attributes.get("phoneNumber")
+            or attributes.get("phone_number")
+        )
+        sip_call_id = attributes.get("sip.callIDFull")
+        self._state.record_sip_participant(phone, sip_call_id)
+
+    def _backfill_sip_state_from_room(self) -> None:
+        from livekit import rtc
+
+        if self._state.sip_call_id:
+            return
+        for participant in self._ctx.room.remote_participants.values():
+            if getattr(participant, "kind", None) == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                self._capture_sip_participant(participant)
+                break
 
     def _register_shutdown_hook(self) -> None:
         self._ctx.add_shutdown_callback(self._on_shutdown)
@@ -188,6 +206,7 @@ class TunerPlugin:
 
         # Snapshot conversation history at shutdown
         history_items = list(self._session.history.items)
+        self._backfill_sip_state_from_room()
 
         # Build Tuner payload
         try:

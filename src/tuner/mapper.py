@@ -236,6 +236,23 @@ def to_create_call_request(
     if state.caller_phone_number:
         payload["caller_phone_number"] = state.caller_phone_number
 
+    sip_call_id_from_metadata: str | None = config.sip_correlation_id
+    if not sip_call_id_from_metadata and config.extra_metadata:
+        sip_call_id_from_metadata = config.extra_metadata.get("sip-correlation-id")
+    if not sip_call_id_from_metadata and config.extra_metadata:
+        sip_call_id_from_metadata = config.extra_metadata.get(
+            "sip_call_id_full"
+        ) or config.extra_metadata.get("sip_call_id")
+    resolved_sip_call_id = sip_call_id_from_metadata or state.sip_call_id
+    if resolved_sip_call_id:
+        # Keep metadata and top-level field aligned even when agent snapshot
+        # was empty at startup and plugin filled SIP ID later.
+        general_meta.setdefault("sip-correlation-id", resolved_sip_call_id)
+        general_meta.setdefault("sip_call_id_full", resolved_sip_call_id)
+        general_meta.setdefault("sip_call_id", resolved_sip_call_id)
+    if resolved_sip_call_id:
+        payload["sip_call_id"] = resolved_sip_call_id
+
     if state.shutdown_reason:
         payload["disconnection_reason"] = state.shutdown_reason
 

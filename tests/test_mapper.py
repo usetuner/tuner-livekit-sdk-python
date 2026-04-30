@@ -454,7 +454,13 @@ def test_to_create_call_request_with_sip_detection():
     from tuner.collector import SessionState
     from tuner.config import TunerConfig
 
-    state = SessionState(start_timestamp=100.0, end_timestamp=110.0, is_sip=True, caller_phone_number="+1234567890")
+    state = SessionState(
+        start_timestamp=100.0,
+        end_timestamp=110.0,
+        is_sip=True,
+        caller_phone_number="+1234567890",
+        sip_call_id="sip-call-id-full-123",
+    )
     config = TunerConfig(
         api_key="test_key",
         workspace_id=123,
@@ -470,6 +476,7 @@ def test_to_create_call_request_with_sip_detection():
 
     assert payload["call_type"] == "phone_call"
     assert payload["caller_phone_number"] == "+1234567890"
+    assert payload["sip_call_id"] == "sip-call-id-full-123"
 
 
 def test_to_create_call_request_with_extra_metadata():

@@ -22,6 +22,7 @@ class SessionState:
     end_timestamp: float | None = None
     is_sip: bool = False
     caller_phone_number: str | None = None
+    sip_call_id: str | None = None
     close_error: Optional[Exception] = None
     _shutdown_reason: str = field(default="", init=False, repr=False)
     _usage_collector: UsageCollector = field(default_factory=UsageCollector, repr=False)
@@ -34,10 +35,13 @@ class SessionState:
         """Record the session close error (None if clean close)."""
         self.close_error = error
 
-    def record_sip_participant(self, phone_number: str | None) -> None:
-        """Mark session as SIP (phone_call) and record caller number."""
+    def record_sip_participant(
+        self, phone_number: str | None, sip_call_id: str | None = None
+    ) -> None:
+        """Mark session as SIP (phone_call) and record SIP participant identifiers."""
         self.is_sip = True
         self.caller_phone_number = phone_number
+        self.sip_call_id = sip_call_id
 
     @property
     def shutdown_reason(self) -> str:

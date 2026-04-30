@@ -23,6 +23,7 @@ class TunerConfig:
     recording_url_resolver: Callable[[str, str], Awaitable[str | None]] | None = None
     cost_calculator: Callable[[UsageSummary], float] | None = None
     extra_metadata: dict | None = None
+    sip_correlation_id: str | None = None
     enabled: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
@@ -38,6 +39,7 @@ class TunerConfig:
         recording_url_resolver: Callable[[str, str], Awaitable[str | None]] | None = None,
         cost_calculator: Callable[[UsageSummary], float] | None = None,
         extra_metadata: dict | None = None,
+        sip_correlation_id: str | None = None,
         enabled: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
@@ -93,6 +95,7 @@ class TunerConfig:
             recording_url_resolver=recording_url_resolver,
             cost_calculator=cost_calculator,
             extra_metadata=extra_metadata,
+            sip_correlation_id=sip_correlation_id,
             enabled=enabled,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
