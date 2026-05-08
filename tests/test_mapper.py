@@ -454,12 +454,18 @@ def test_to_create_call_request_with_sip_detection():
     from tuner.collector import SessionState
     from tuner.config import TunerConfig
 
-    state = SessionState(start_timestamp=100.0, end_timestamp=110.0, is_sip=True, caller_phone_number="+1234567890")
+    state = SessionState(
+        start_timestamp=100.0,
+        end_timestamp=110.0,
+        is_sip=True,
+        caller_phone_number="+1234567890",
+    )
     config = TunerConfig(
         api_key="test_key",
         workspace_id=123,
         agent_id="test_agent",
         call_type=None,  # Auto-detect
+        sip_correlation_id="sip-call-id-full-123",
     )
     ctx = MockJobContext()
     session = make_mock_session()
@@ -470,6 +476,33 @@ def test_to_create_call_request_with_sip_detection():
 
     assert payload["call_type"] == "phone_call"
     assert payload["caller_phone_number"] == "+1234567890"
+    assert payload["sip_call_id"] == "sip-call-id-full-123"
+
+
+def test_to_create_call_request_uses_state_sip_call_id_when_config_missing():
+    """Falls back to SessionState SIP ID when config sip_correlation_id is not set."""
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
+
+    state = SessionState(
+        start_timestamp=100.0,
+        end_timestamp=110.0,
+        is_sip=True,
+        sip_call_id="sip-call-id-full-from-state",
+    )
+    config = TunerConfig(
+        api_key="test_key",
+        workspace_id=123,
+        agent_id="test_agent",
+        call_type=None,
+    )
+    ctx = MockJobContext()
+    session = make_mock_session()
+
+    items = [user_msg("Hello from phone", created_at=100.0)]
+    payload = to_create_call_request(session, state, items, config, ctx)
+
+    assert payload["sip_call_id"] == "sip-call-id-full-from-state"
 
 
 def test_to_create_call_request_with_extra_metadata():

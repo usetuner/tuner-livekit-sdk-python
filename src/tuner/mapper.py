@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
 from livekit.agents import AgentSession
@@ -236,9 +235,19 @@ def to_create_call_request(
     if state.caller_phone_number:
         payload["caller_phone_number"] = state.caller_phone_number
 
+    resolved_sip_call_id = config.sip_correlation_id or state.sip_call_id
+    if resolved_sip_call_id:
+        general_meta.setdefault("sip-correlation-id", resolved_sip_call_id)
+        general_meta.setdefault("sip_call_id_full", resolved_sip_call_id)
+    if resolved_sip_call_id:
+        payload["sip_call_id"] = resolved_sip_call_id
+
     if state.shutdown_reason:
         payload["disconnection_reason"] = state.shutdown_reason
 
     payload["call_successful"] = state.close_error is None
+
+    if config.agent_version is not None:
+        payload["agent_version"] = config.agent_version
 
     return payload
