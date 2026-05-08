@@ -250,4 +250,7 @@ def to_create_call_request(
 
     payload["call_successful"] = state.close_error is None
 
+    if config.agent_version is not None:
+        payload["agent_version"] = config.agent_version
+
     return payload

@@ -127,6 +127,22 @@ TunerPlugin(
 )
 ```
 
+### Agent version tracking
+
+Track which version of your agent handled each call — useful when you update a prompt, swap a model, or change your pipeline:
+
+```bash
+AGENT_VERSION=42 python agent.py start
+```
+
+Tuner reads it automatically. Bump the number on every deployment.
+
+Override in code (takes priority over the env var):
+
+```python
+TunerPlugin(session, ctx, agent_version=42, ...)
+```
+
 ### Disable the plugin
 
 Useful for local development or test environments:

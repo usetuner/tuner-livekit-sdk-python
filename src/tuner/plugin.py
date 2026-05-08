@@ -57,6 +57,7 @@ class TunerPlugin:
 
     Optional env vars:
         TUNER_BASE_URL       API base URL (default: https://api.usetuner.ai)
+        AGENT_VERSION        Version identifier attached to every call
 
     Advanced usage:
         TunerPlugin(
@@ -88,6 +89,7 @@ class TunerPlugin:
         cost_calculator: Callable[[UsageSummary], float] | None = None,
         sip_correlation_id: str | None = None,
         extra_metadata: dict | None = None,
+        agent_version: str | int | None = None,
         enabled: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
@@ -112,6 +114,7 @@ class TunerPlugin:
                 cost_calculator=cost_calculator,
                 sip_correlation_id=sip_correlation_id,
                 extra_metadata=extra_metadata,
+                agent_version=agent_version,
                 enabled=enabled,
                 timeout_seconds=timeout_seconds,
                 max_retries=max_retries,
