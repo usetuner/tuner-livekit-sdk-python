@@ -7,12 +7,14 @@ from enum import Enum
 
 from livekit.agents.metrics import UsageCollector, UsageSummary
 
+
 class DisconnectReason(str, Enum):
     """Standard disconnection reasons detected by the SDK."""
 
     USER_HANGUP = "user_hangup"
     AGENT_HANGUP = "agent_hangup"
     ERROR = "error"
+
 
 @dataclass
 class SessionState:

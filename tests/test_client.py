@@ -21,7 +21,11 @@ def config():
 
 @pytest.fixture
 def payload():
-    return {"call_id": "job_123", "call_type": "web_call", "transcript_with_tool_calls": []}
+    return {
+        "call_id": "job_123",
+        "call_type": "web_call",
+        "transcript_with_tool_calls": [],
+    }
 
 
 def make_mock_response(status: int, body: dict | str = "") -> MagicMock:

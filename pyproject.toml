@@ -28,6 +28,8 @@ dependencies = [
     "aiohttp>=3.9",
     "livekit-agents>=1.4",
 ]
+[project.optional-dependencies]
+langchain = ["tuner-langchain"]
 
 [project.urls]
 Homepage     = "https://usetuner.ai"
@@ -51,3 +53,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "tuner" = ["py.typed"]
+
+[tool.uv.sources]
+tuner-langchain = { path = "../tuner-langchain", editable = true }

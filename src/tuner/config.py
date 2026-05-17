@@ -37,7 +37,8 @@ class TunerConfig:
         agent_id: str | None = None,
         base_url: str | None = None,
         call_type: str | None = None,
-        recording_url_resolver: Callable[[str, str], Awaitable[str | None]] | None = None,
+        recording_url_resolver: Callable[[str, str], Awaitable[str | None]]
+        | None = None,
         cost_calculator: Callable[[UsageSummary], float] | None = None,
         extra_metadata: dict | None = None,
         sip_correlation_id: str | None = None,
@@ -87,9 +88,13 @@ class TunerConfig:
                 "Set the TUNER_AGENT_ID env var or pass agent_id= to TunerPlugin."
             )
 
-        resolved_base_url = base_url or os.environ.get("TUNER_BASE_URL", _DEFAULT_BASE_URL)
+        resolved_base_url = base_url or os.environ.get(
+            "TUNER_BASE_URL", _DEFAULT_BASE_URL
+        )
         resolved_agent_version = (
-            str(agent_version) if agent_version is not None else os.environ.get("AGENT_VERSION")
+            str(agent_version)
+            if agent_version is not None
+            else os.environ.get("AGENT_VERSION")
         )
 
         return cls(

@@ -156,6 +156,40 @@ TunerPlugin(
 )
 ```
 
+## LangGraph / LangChain observability
+
+If your agent uses LangGraph or LangChain as the orchestration layer, install
+`tuner-langchain` and wire it in with `attach_langgraph()` or `attach_langchain()`:
+
+```python
+from tuner import TunerPlugin
+
+plugin = TunerPlugin(session, ctx)
+handler = plugin.attach_langgraph()
+
+agent = Agent(
+    llm=langchain.LLMAdapter(
+        graph=my_graph,
+        config={"callbacks": [handler]},
+    ),
+)
+```
+
+To limit what data is forwarded to Tuner, pass a `CaptureConfig`:
+
+```python
+from tuner import TunerPlugin
+from tuner_langchain import CaptureConfig
+
+plugin = TunerPlugin(session, ctx)
+handler = plugin.attach_langgraph(
+    capture=CaptureConfig(
+        tool_inputs=False,
+        node_instructions=False,
+    )
+)
+```
+
 ## Full example
 
 ```python

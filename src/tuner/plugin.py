@@ -12,8 +12,25 @@ from .mapper import to_create_call_request
 if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
     from livekit.agents.metrics import UsageSummary
+    from tuner_langchain import CaptureConfig
+    from tuner_langchain.handlers.base import TunerBaseHandler
 
 logger = logging.getLogger("tuner")
+
+try:
+    from tuner_langchain import (
+        TunerAccumulator,
+        TunerLangChainHandler,
+        TunerLangGraphHandler,
+    )
+
+    _LANGCHAIN_AVAILABLE = True
+except ImportError:
+    logger.warning(
+        "tuner_langchain not installed; LangGraph/LangChain support disabled"
+    )
+    _LANGCHAIN_AVAILABLE = False
+
 
 _RECORDING_URL_PLACEHOLDER = "pending"
 
@@ -98,6 +115,7 @@ class TunerPlugin:
         self._ctx = ctx
         self._state = SessionState()
         self._config: TunerConfig | None = None
+        self._lg_accumulator: TunerAccumulator | None = None
 
         if not enabled:
             logger.debug("TunerPlugin is disabled; no data will be sent to Tuner")
@@ -120,9 +138,7 @@ class TunerPlugin:
                 max_retries=max_retries,
             )
         except ValueError as exc:
-            logger.error(
-                "TunerPlugin is misconfigured and will not send data: %s", exc
-            )
+            logger.error("TunerPlugin is misconfigured and will not send data: %s", exc)
             return
 
         self._setup_event_listeners()
@@ -151,7 +167,10 @@ class TunerPlugin:
         @self._ctx.room.on("participant_disconnected")
         def _on_participant_disconnected(participant) -> None:
             if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD:
-                if participant.disconnect_reason == rtc.DisconnectReason.CLIENT_INITIATED:
+                if (
+                    participant.disconnect_reason
+                    == rtc.DisconnectReason.CLIENT_INITIATED
+                ):
                     state.set_shutdown_reason(DisconnectReason.USER_HANGUP)
 
         @self._ctx.room.on("participant_connected")
@@ -175,9 +194,71 @@ class TunerPlugin:
         if self._state.sip_call_id:
             return
         for participant in self._ctx.room.remote_participants.values():
-            if getattr(participant, "kind", None) == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+            if (
+                getattr(participant, "kind", None)
+                == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+            ):
                 self._capture_sip_participant(participant)
                 break
+
+    def attach_langgraph(self, capture: "CaptureConfig | None" = None) -> "TunerBaseHandler":
+        """
+        Wire LangGraph observability into this plugin.
+
+        Call once after creating TunerPlugin, before session.start().
+        Pass the returned handler to your LangGraph config.
+
+        Example:
+            plugin = TunerPlugin(session, ctx)
+            handler = plugin.attach_langgraph()
+
+            session = AgentSession(
+                llm=langchain.LLMAdapter(
+                    graph=my_graph,
+                    config={"callbacks": [handler]},
+                ),
+                ...
+            )
+        """
+        if not _LANGCHAIN_AVAILABLE:
+            raise ImportError(
+                "tuner-langchain is required for LangGraph support. "
+                "Install it with: pip install tuner-langchain"
+            )
+        if self._lg_accumulator is not None:
+            logger.warning(
+                "attach_langgraph() called more than once — returning existing handler. "
+                "Only one accumulator per session is supported."
+            )
+            return TunerLangGraphHandler(self._lg_accumulator)
+        self._lg_accumulator = TunerAccumulator(capture=capture)
+        return TunerLangGraphHandler(self._lg_accumulator)
+
+    def attach_langchain(self, capture: "CaptureConfig | None" = None) -> "TunerBaseHandler":
+        """
+        Wire plain LangChain chain observability into this plugin.
+
+        Same usage as attach_langgraph() but for non-graph LangChain runnables.
+
+        Example:
+            plugin = TunerPlugin(session, ctx)
+            handler = plugin.attach_langchain()
+
+            chain.invoke(inputs, config={"callbacks": [handler]})
+        """
+        if not _LANGCHAIN_AVAILABLE:
+            raise ImportError(
+                "tuner-langchain is required for LangChain support. "
+                "Install it with: pip install tuner-langchain"
+            )
+        if self._lg_accumulator is not None:
+            logger.warning(
+                "attach_langchain() called more than once — returning existing handler. "
+                "Only one accumulator per session is supported."
+            )
+            return TunerLangChainHandler(self._lg_accumulator)
+        self._lg_accumulator = TunerAccumulator(capture=capture)
+        return TunerLangChainHandler(self._lg_accumulator)
 
     def _register_shutdown_hook(self) -> None:
         self._ctx.add_shutdown_callback(self._on_shutdown)
@@ -194,7 +275,9 @@ class TunerPlugin:
         # Resolve recording URL — always required by Tuner.
         # Falls back to _default_recording_url_resolver which returns a placeholder
         # if the developer has not provided their own resolver.
-        resolver = self._config.recording_url_resolver or _default_recording_url_resolver
+        resolver = (
+            self._config.recording_url_resolver or _default_recording_url_resolver
+        )
         try:
             recording_url = await resolver(self._ctx.room.name, str(self._ctx.job.id))
         except Exception:
@@ -219,6 +302,7 @@ class TunerPlugin:
                 history_items,
                 self._config,
                 self._ctx,
+                lg_acc=self._lg_accumulator,
             )
         except Exception:
             logger.exception("Failed to build Tuner payload; skipping submission")
@@ -236,7 +320,8 @@ class TunerPlugin:
             + _max_jitter_s * self._config.max_retries
         )
         total_timeout = (
-            self._config.timeout_seconds * (self._config.max_retries + 1) + backoff_budget
+            self._config.timeout_seconds * (self._config.max_retries + 1)
+            + backoff_budget
         )
         try:
             await asyncio.wait_for(

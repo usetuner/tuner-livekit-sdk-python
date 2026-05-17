@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from uuid import uuid4
 from livekit.agents import AgentSession
-from livekit.agents.llm.chat_context import ChatMessage, FunctionCall, FunctionCallOutput
+from livekit.agents.llm.chat_context import (
+    ChatMessage,
+    FunctionCall,
+    FunctionCallOutput,
+)
 
 from tuner.mapper import (
     map_history_to_segments,
@@ -49,9 +54,10 @@ def func_call(call_id: str, name: str, args: str = "{}") -> FunctionCall:
     return FunctionCall(call_id=call_id, name=name, arguments=args)
 
 
-def func_output(call_id: str, output: str, is_error: bool = False) -> FunctionCallOutput:
+def func_output(
+    call_id: str, output: str, is_error: bool = False
+) -> FunctionCallOutput:
     return FunctionCallOutput(call_id=call_id, output=output, is_error=is_error)
-
 
 
 def test_map_history_to_segments_with_provided_restaurant_slot_values():
@@ -145,14 +151,21 @@ def test_map_history_to_segments_with_provided_restaurant_slot_values():
     assert res_tool["name"] == "check_table_availability"
     assert res_tool["request_id"] == "call_3DxJTGulkeLIKVqABS3oe2Ij"
     assert res_tool["is_error"] is False
-    assert res_tool["result"]["value"] == "Table is available on 2024-04-28 at 08:00 for 2 guests."
+    assert (
+        res_tool["result"]["value"]
+        == "Table is available on 2024-04-28 at 08:00 for 2 guests."
+    )
     expected_result_ms = max(0, int((items[2].created_at - 1772730379.491848) * 1000))
     assert segments[2]["start_ms"] == expected_result_ms
     assert "start_ms" not in res_tool
 
     # --- segment 3: agent reply ---
-    expected_agent_start_ms = max(0, int((items[3].metrics["started_speaking_at"] - 1772730379.491848) * 1000))
-    expected_agent_end_ms = max(0, int((items[3].metrics["stopped_speaking_at"] - 1772730379.491848) * 1000))
+    expected_agent_start_ms = max(
+        0, int((items[3].metrics["started_speaking_at"] - 1772730379.491848) * 1000)
+    )
+    expected_agent_end_ms = max(
+        0, int((items[3].metrics["stopped_speaking_at"] - 1772730379.491848) * 1000)
+    )
     assert segments[3]["start_ms"] == expected_agent_start_ms
     assert segments[3]["end_ms"] == expected_agent_end_ms
     assert segments[3]["metadata"]["id"] == "item_4dd0f89440d5"
@@ -204,7 +217,7 @@ def test_chat_message_metadata_fields():
     u = segments[0]
     assert u["role"] == "user"
     assert u["text"] == "Test user message"
-    assert u["start_ms"] == 500   # (session_start + 0.5 - session_start) * 1000
+    assert u["start_ms"] == 500  # (session_start + 0.5 - session_start) * 1000
     assert u["end_ms"] == 1500
     assert u["metadata"]["id"] == "user_id_001"
     assert u["metadata"]["interrupted"] is False
@@ -281,7 +294,9 @@ def test_function_call_output_metadata_fields():
         created_at=session_start + 5.0,
     )
 
-    segments = map_history_to_segments([success, failure], session_start_ts=session_start)
+    segments = map_history_to_segments(
+        [success, failure], session_start_ts=session_start
+    )
 
     assert len(segments) == 2
 
@@ -292,7 +307,10 @@ def test_function_call_output_metadata_fields():
     assert ok["tool"]["name"] == "book_table"
     assert ok["tool"]["request_id"] == "call_abc123"
     assert ok["tool"]["is_error"] is False
-    assert ok["tool"]["result"]["value"] == "Booking confirmed for 4 guests on 2024-06-15 at 19:00."
+    assert (
+        ok["tool"]["result"]["value"]
+        == "Booking confirmed for 4 guests on 2024-06-15 at 19:00."
+    )
     assert "error" not in ok["tool"]
     assert "start_ms" not in ok["tool"]
 
@@ -339,7 +357,10 @@ class MockJobContext:
     """Mock LiveKit JobContext."""
 
     def __init__(
-        self, job_id: str = "job_12345", room_name: str = "console", participants: dict | None = None
+        self,
+        job_id: str = "job_12345",
+        room_name: str = "console",
+        participants: dict | None = None,
     ):
         self.job = MockJob(job_id)
         self.room = MockRoom(room_name, participants)
@@ -535,7 +556,11 @@ def test_to_create_call_request_with_error():
     from tuner.collector import SessionState
     from tuner.config import TunerConfig
 
-    state = SessionState(start_timestamp=100.0, end_timestamp=110.0, close_error=RuntimeError("Connection failed"))
+    state = SessionState(
+        start_timestamp=100.0,
+        end_timestamp=110.0,
+        close_error=RuntimeError("Connection failed"),
+    )
     config = TunerConfig(
         api_key="test_key",
         workspace_id=123,
@@ -559,7 +584,7 @@ def test_to_create_call_request_with_shutdown_reason():
 
     state = SessionState(start_timestamp=100.0, end_timestamp=110.0)
     state.set_shutdown_reason("user_hang_up")
-    
+
     config = TunerConfig(
         api_key="test_key",
         workspace_id=123,
@@ -592,26 +617,43 @@ def test_to_create_call_request_restaurant_booking_scenario():
             "Hello! Thank you for calling. How can I assist you today? Are you looking to book a table?",
             created_at=session_start + 2.5,
         ),
-        user_msg("Yes. I would like to book a table for two persons.", created_at=session_start + 14.7),
+        user_msg(
+            "Yes. I would like to book a table for two persons.",
+            created_at=session_start + 14.7,
+        ),
         agent_msg(
             "Great! Could you please provide me with the date and time you would like to book the table for two persons?",
             created_at=session_start + 15.1,
         ),
-        user_msg("I want the first slot available tomorrow morning between eight and twelve.", created_at=session_start + 27.3),
+        user_msg(
+            "I want the first slot available tomorrow morning between eight and twelve.",
+            created_at=session_start + 27.3,
+        ),
         agent_msg(
             "To assist you better, could you please specify the exact date for tomorrow? Also, do you have a preferred time within the 8 AM to 12 PM range, or should I find the earliest available slot for you?",
             created_at=session_start + 27.7,
         ),
-        user_msg("Select a salt between eight and twelve.", created_at=session_start + 43.0),
+        user_msg(
+            "Select a salt between eight and twelve.", created_at=session_start + 43.0
+        ),
         func_call(
             "call_aQsizBZr6wQJxOdUvJBLMCa2",
             "check_table_availability",
             '{"date":"2024-06-13","guests":2,"time":"08:00"}',
         ),
-        func_output("call_aQsizBZr6wQJxOdUvJBLMCa2", "Table is available on 2024-06-13 at 08:00 for 2 guests."),
-        agent_msg("We have a table available tomorrow at 8:00 AM for two persons. Would you like me to book this slot for you? If so,", created_at=session_start + 50.5),
+        func_output(
+            "call_aQsizBZr6wQJxOdUvJBLMCa2",
+            "Table is available on 2024-06-13 at 08:00 for 2 guests.",
+        ),
+        agent_msg(
+            "We have a table available tomorrow at 8:00 AM for two persons. Would you like me to book this slot for you? If so,",
+            created_at=session_start + 50.5,
+        ),
         user_msg("Yes.", created_at=session_start + 52.1),
-        agent_msg("Could you please provide me with your full name to confirm the booking?", created_at=session_start + 52.1),
+        agent_msg(
+            "Could you please provide me with your full name to confirm the booking?",
+            created_at=session_start + 52.1,
+        ),
     ]
 
     session_end = session_start + 60.0
@@ -670,6 +712,7 @@ def test_to_create_call_request_restaurant_booking_scenario():
     assert payload["general_meta_data_raw"]["livekit_room_name"] == "console"
     assert "usage_token" in payload["general_meta_data_raw"]
 
+
 def test_user_segment_missing_speaking_timestamps_falls_back_to_created_at():
     """
     When started_speaking_at / stopped_speaking_at are absent (e.g. user spoke
@@ -699,8 +742,171 @@ def test_user_segment_missing_speaking_timestamps_falls_back_to_created_at():
 
     expected_ms = int((item.created_at - session_start) * 1000)  # 74000
 
-    assert seg["start_ms"] != 0, "start_ms should not be 0 when speaking timestamps are absent"
-    assert seg["end_ms"] != 0, "end_ms should not be 0 when speaking timestamps are absent"
+    assert seg["start_ms"] != 0, (
+        "start_ms should not be 0 when speaking timestamps are absent"
+    )
+    assert seg["end_ms"] != 0, (
+        "end_ms should not be 0 when speaking timestamps are absent"
+    )
     assert seg["start_ms"] == expected_ms
     assert seg["end_ms"] == expected_ms  # start == end is acceptable, just not 0
 
+
+# ---------------------------------------------------------------------------
+# LangGraph accumulator integration
+# ---------------------------------------------------------------------------
+
+
+def test_function_calls_skipped_when_lg_acc_provided():
+    """
+    When lg_acc is passed, FunctionCall and FunctionCallOutput items from
+    ChatContext are skipped — LangGraph already produced them with richer timing.
+    """
+    from tuner_langchain import TunerAccumulator
+
+    session_start = 1_700_000_000.0
+    acc = TunerAccumulator()  # empty — no invocations
+
+    items = [
+        user_msg("Hello", created_at=session_start),
+        func_call("call_1", "check_availability", '{"date": "2024-06-15"}'),
+        func_output("call_1", "Two slots available"),
+        agent_msg("I found two slots.", created_at=session_start + 1),
+    ]
+
+    segments = map_history_to_segments(
+        items,
+        session_start_ts=session_start,
+        lg_acc=acc,
+    )
+
+    roles = [s["role"] for s in segments]
+    assert "agent_function" not in roles
+    assert "agent_result" not in roles
+    assert roles == ["user", "agent"]
+
+
+def test_langgraph_segments_merged_into_timeline():
+    """
+    LangGraph node transitions and tool calls are inserted into the segment
+    list and sorted chronologically alongside user/agent messages.
+    """
+    from tuner_langchain import TunerAccumulator
+
+    session_start = 1_700_000_000.0
+    session_start_ns = int(session_start * 1_000_000_000)
+
+    acc = TunerAccumulator()
+    root = str(uuid4())
+    node_id = str(uuid4())
+    tool_id = str(uuid4())
+
+    # Graph runs between user message and agent reply
+    node_start_ns = session_start_ns + 500_000_000  # +500ms
+    node_end_ns = session_start_ns + 900_000_000  # +900ms
+    tool_start_ns = session_start_ns + 600_000_000  # +600ms
+    tool_end_ns = session_start_ns + 800_000_000  # +800ms
+
+    acc.on_graph_start(root, session_start_ns + 400_000_000)
+    acc.on_node_start("booking_node", node_id, root, node_start_ns, {})
+    acc.on_tool_start(
+        "check_availability", tool_id, node_id, tool_start_ns, '{"date":"2024-06-15"}'
+    )
+    acc.on_tool_end(tool_id, tool_end_ns, '{"available": true}')
+    acc.on_node_end(node_id, node_end_ns, {})
+    acc.on_graph_end(root, session_start_ns + 1_000_000_000)
+
+    items = [
+        user_msg("Book me a table", created_at=session_start),
+        agent_msg("Done!", created_at=session_start + 1.1),
+    ]
+
+    segments = map_history_to_segments(
+        items,
+        session_start_ts=session_start,
+        lg_acc=acc,
+    )
+
+    roles = [s["role"] for s in segments]
+    assert "node_transition" in roles
+    assert "agent_function" in roles
+    assert "agent_result" in roles
+
+    # Must be sorted by start_ms
+    start_ms_values = [s["start_ms"] for s in segments]
+    assert start_ms_values == sorted(start_ms_values)
+
+    # Node transition has correct name
+    node_seg = next(s for s in segments if s["role"] == "node_transition")
+    assert node_seg["text"] == "booking_node"
+
+
+def test_langgraph_segments_not_merged_when_lg_acc_none():
+    """
+    When lg_acc is None, FunctionCall items are mapped normally —
+    LangGraph path is not active.
+    """
+    session_start = 1_700_000_000.0
+
+    items = [
+        user_msg("Hello", created_at=session_start),
+        func_call("call_1", "check_availability", '{"date": "2024-06-15"}'),
+        func_output("call_1", "Two slots available"),
+    ]
+
+    segments = map_history_to_segments(
+        items,
+        session_start_ts=session_start,
+        lg_acc=None,
+    )
+
+    roles = [s["role"] for s in segments]
+    assert "agent_function" in roles
+    assert "agent_result" in roles
+
+
+def test_to_create_call_request_with_lg_acc():
+    """
+    When lg_acc is passed to to_create_call_request, LangGraph segments
+    appear in transcript_with_tool_calls and FunctionCall items are skipped.
+    """
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
+    from tuner_langchain import TunerAccumulator
+
+    session_start = 1_700_000_000.0
+    session_start_ns = int(session_start * 1_000_000_000)
+
+    acc = TunerAccumulator()
+    root = str(uuid4())
+    node_id = str(uuid4())
+
+    acc.on_graph_start(root, session_start_ns + 200_000_000)
+    acc.on_node_start("intent_node", node_id, root, session_start_ns + 300_000_000, {})
+    acc.on_node_end(node_id, session_start_ns + 700_000_000, {})
+    acc.on_graph_end(root, session_start_ns + 800_000_000)
+
+    state = SessionState(start_timestamp=session_start, end_timestamp=session_start + 2)
+    config = TunerConfig(api_key="tr_api_test", workspace_id=1, agent_id="agent")
+    ctx = MockJobContext()
+    session = make_mock_session()
+
+    items = [
+        user_msg("Hello", created_at=session_start),
+        func_call("call_1", "check_availability", "{}"),
+        func_output("call_1", "result"),
+        agent_msg("Hi!", created_at=session_start + 1),
+    ]
+
+    payload = to_create_call_request(session, state, items, config, ctx, lg_acc=acc)
+
+    segments = payload["transcript_with_tool_calls"]
+    roles = [s["role"] for s in segments]
+    node_seg = next(s for s in segments if s["role"] == "node_transition")
+
+    assert "node_transition" in roles
+    assert "agent_function" not in roles  # FunctionCall skipped — LangGraph owns it
+    assert "agent_result" not in roles
+    assert node_seg["text"] == "intent_node"
+    assert node_seg["start_ms"] >= 0
+    assert node_seg["metadata"]["duration_ms"] is not None
