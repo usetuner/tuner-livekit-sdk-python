@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from .client import submit_call
 from .collector import DisconnectReason, SessionState
@@ -13,16 +13,13 @@ if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
     from livekit.agents.metrics import UsageSummary
     from tuner_langchain import CaptureConfig
-    from tuner_langchain.handlers.base import TunerBaseHandler
 
 logger = logging.getLogger("tuner")
 
 try:
-    from tuner_langchain import (
-        TunerAccumulator,
-        TunerLangChainHandler,
-        TunerLangGraphHandler,
-    )
+    from tuner_langchain import TunerAccumulator
+    from tuner_langchain.graph_wrapper import wrap_chain as _lg_wrap_chain
+    from tuner_langchain.graph_wrapper import wrap_graph as _lg_wrap_graph
 
     _LANGCHAIN_AVAILABLE = True
 except ImportError:
@@ -201,64 +198,58 @@ class TunerPlugin:
                 self._capture_sip_participant(participant)
                 break
 
-    def attach_langgraph(self, capture: "CaptureConfig | None" = None) -> "TunerBaseHandler":
+    def wrap_graph(
+        self,
+        graph: Any,
+        capture: "CaptureConfig | None" = None,
+    ) -> Any:
         """
-        Wire LangGraph observability into this plugin.
+        Wrap a LangGraph graph for Tuner observability.
 
-        Call once after creating TunerPlugin, before session.start().
-        Pass the returned handler to your LangGraph config.
+        Returns a drop-in replacement for ``graph``. Pass it directly to
+        LLMAdapter — no other wiring needed:
 
-        Example:
             plugin = TunerPlugin(session, ctx)
-            handler = plugin.attach_langgraph()
-
-            session = AgentSession(
-                llm=langchain.LLMAdapter(
-                    graph=my_graph,
-                    config={"callbacks": [handler]},
-                ),
-                ...
+            llm = langchain.LLMAdapter(
+                plugin.wrap_graph(graph),
+                stream_mode="messages",
             )
+
+        Captures tool calls, node transitions, timing, and token attribution.
+        Also filters ToolMessage chunks to prevent tool results reaching TTS.
+
+        Requires tuner-langchain: pip install tuner-langchain
         """
         if not _LANGCHAIN_AVAILABLE:
             raise ImportError(
                 "tuner-langchain is required for LangGraph support. "
                 "Install it with: pip install tuner-langchain"
             )
-        if self._lg_accumulator is not None:
-            logger.warning(
-                "attach_langgraph() called more than once — returning existing handler. "
-                "Only one accumulator per session is supported."
-            )
-            return TunerLangGraphHandler(self._lg_accumulator)
-        self._lg_accumulator = TunerAccumulator(capture=capture)
-        return TunerLangGraphHandler(self._lg_accumulator)
+        if self._lg_accumulator is None:
+            self._lg_accumulator = TunerAccumulator(capture=capture)
+        return _lg_wrap_graph(graph, accumulator=self._lg_accumulator)
 
-    def attach_langchain(self, capture: "CaptureConfig | None" = None) -> "TunerBaseHandler":
+    def wrap_chain(
+        self,
+        chain: Any,
+        capture: "CaptureConfig | None" = None,
+    ) -> Any:
         """
-        Wire plain LangChain chain observability into this plugin.
+        Wrap a plain LangChain runnable for Tuner observability.
 
-        Same usage as attach_langgraph() but for non-graph LangChain runnables.
+        Returns a drop-in replacement for ``chain`` that captures chain steps
+        and tool calls. Use this for non-graph LangChain pipelines.
 
-        Example:
-            plugin = TunerPlugin(session, ctx)
-            handler = plugin.attach_langchain()
-
-            chain.invoke(inputs, config={"callbacks": [handler]})
+        Requires tuner-langchain: pip install tuner-langchain
         """
         if not _LANGCHAIN_AVAILABLE:
             raise ImportError(
                 "tuner-langchain is required for LangChain support. "
                 "Install it with: pip install tuner-langchain"
             )
-        if self._lg_accumulator is not None:
-            logger.warning(
-                "attach_langchain() called more than once — returning existing handler. "
-                "Only one accumulator per session is supported."
-            )
-            return TunerLangChainHandler(self._lg_accumulator)
-        self._lg_accumulator = TunerAccumulator(capture=capture)
-        return TunerLangChainHandler(self._lg_accumulator)
+        if self._lg_accumulator is None:
+            self._lg_accumulator = TunerAccumulator(capture=capture)
+        return _lg_wrap_chain(chain, accumulator=self._lg_accumulator)
 
     def _register_shutdown_hook(self) -> None:
         self._ctx.add_shutdown_callback(self._on_shutdown)
