@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tuner-livekit-sdk"
-version = "0.1.5"
+version = "0.1.6"
 description = "Automatically ingest LiveKit Agents session data into the Tuner observability API"
 readme = "README.md"
 license = "MIT"
@@ -29,7 +29,7 @@ dependencies = [
     "livekit-agents>=1.4",
 ]
 [project.optional-dependencies]
-langchain = ["tuner-langchain"]
+langchain = ["tuner-langchain>=0.1.0"]
 
 [project.urls]
 Homepage     = "https://usetuner.ai"
@@ -54,5 +54,3 @@ where = ["src"]
 [tool.setuptools.package-data]
 "tuner" = ["py.typed"]
 
-[tool.uv.sources]
-tuner-langchain = { path = "../tuner-langchain", editable = true }
