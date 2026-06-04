@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 from livekit.agents import AgentSession
@@ -9,6 +10,12 @@ from livekit.agents import AgentSession
 if TYPE_CHECKING:
     from .collector import SessionState
     from .config import TunerConfig
+
+try:
+    from tuner_langchain import TunerAccumulator
+    from tuner_langchain.segment_builder import segments_from_invocation
+except ImportError:
+    TunerAccumulator = None  # type: ignore[assignment]
 
 logger = logging.getLogger("tuner.mapper")
 
@@ -23,9 +30,11 @@ def _seconds_to_milliseconds(value: Any) -> int | None:
         logger.debug("Could not convert metric value %r to milliseconds", value)
         return None
 
+
 def map_history_to_segments(
     items: list[Any],
     session_start_ts: float = 0.0,
+    lg_acc: "TunerAccumulator | None" = None,
 ) -> list[dict]:
     """
     Map LiveKit ChatContext items to Tuner PublicTranscriptSegment dicts.
@@ -34,11 +43,17 @@ def map_history_to_segments(
         items:            List of ChatContext items (ChatMessage, FunctionCall, etc.).
         session_start_ts: Session start time (epoch seconds). Used to compute
                           start_ms/end_ms relative to session start.
+        lg_acc:           Optional TunerAccumulator. When provided, LangGraph
+                          node transitions and tool calls are merged into the
+                          timeline. FunctionCall / FunctionCallOutput items from
+                          ChatContext are skipped — LangGraph already produced them
+                          with richer timing data.
 
     Roles produced:
       - user          → ChatMessage(role="user")
       - agent         → ChatMessage(role="assistant")
       - agent_function → FunctionCall (merged with FunctionCallOutput)
+      - node_transition → LangGraph node transition (only when lg_acc provided)
     """
     from livekit.agents.llm.chat_context import (
         ChatMessage,
@@ -75,16 +90,29 @@ def map_history_to_segments(
                 "metadata": {
                     "id": item.id,
                     "interrupted": item.interrupted,
-                    "llm_node_ttft": _seconds_to_milliseconds(item.metrics.get("llm_node_ttft")),
-                    "tts_node_ttfb": _seconds_to_milliseconds(item.metrics.get("tts_node_ttfb")),
-                    "stt_node_ttfb": _seconds_to_milliseconds(item.metrics.get("transcription_delay")),
-                    "e2e_latency": _seconds_to_milliseconds(item.metrics.get("e2e_latency")),
+                    "llm_node_ttft": _seconds_to_milliseconds(
+                        item.metrics.get("llm_node_ttft")
+                    ),
+                    "tts_node_ttfb": _seconds_to_milliseconds(
+                        item.metrics.get("tts_node_ttfb")
+                    ),
+                    "stt_node_ttfb": _seconds_to_milliseconds(
+                        item.metrics.get("transcription_delay")
+                    ),
+                    "e2e_latency": _seconds_to_milliseconds(
+                        item.metrics.get("e2e_latency")
+                    ),
                     "transcript_confidence": item.transcript_confidence,
                 },
             }
             segments.append(seg)
 
         elif isinstance(item, (FunctionCall, FunctionCallOutput)):
+            # When LangGraph is active skip — LangGraph produced these with
+            # real timing from the callback handler.
+            if lg_acc is not None:
+                continue
+
             tool_payload: dict[str, Any] = {
                 "name": item.name,
                 "request_id": item.call_id,
@@ -108,10 +136,19 @@ def map_history_to_segments(
             segments.append(
                 {
                     "role": role,
-                    "start_ms": max(0, int((item.created_at - session_start_ts) * 1000)),
+                    "start_ms": max(
+                        0, int((item.created_at - session_start_ts) * 1000)
+                    ),
                     "tool": tool_payload,
                 }
             )
+
+    #  Merge LangGraph segments and sort ──────────────
+    if lg_acc is not None:
+        session_start_ns = int(session_start_ts * 1_000_000_000)
+        for inv in lg_acc.get_invocations():
+            segments.extend(segments_from_invocation(inv, session_start_ns))
+        segments.sort(key=lambda s: s.get("start_ms", 0))
 
     return segments
 
@@ -142,6 +179,7 @@ def to_create_call_request(
     history_items: list[Any],
     config: "TunerConfig",
     ctx: Any,
+    lg_acc: "TunerAccumulator | None" = None,
 ) -> dict:
     """
     Build the Tuner CreateCallRequest payload from session state and history.
@@ -151,6 +189,7 @@ def to_create_call_request(
         history_items: List of ChatContext items (session.history.items).
         config:        TunerConfig instance.
         ctx:           LiveKit JobContext.
+        lg_acc:        Optional TunerAccumulator for LangGraph instrumentation.
 
     Returns:
         Dict ready to POST to the Tuner API.
@@ -181,13 +220,16 @@ def to_create_call_request(
     segments = map_history_to_segments(
         history_items,
         session_start_ts=state.start_timestamp,
+        lg_acc=lg_acc,
     )
     plain_transcript = build_plain_transcript(history_items)
 
     # --- Usage summary for metadata ---
     usage = state.get_usage_summary()
     usage_dict = {
-        "llm_token": usage.llm_prompt_tokens + usage.llm_completion_tokens + usage.llm_prompt_cached_tokens,
+        "llm_token": usage.llm_prompt_tokens
+        + usage.llm_completion_tokens
+        + usage.llm_prompt_cached_tokens,
         "tts_characters_count": usage.tts_characters_count,
         "stt_duration_seconds": usage.stt_audio_duration,
     }

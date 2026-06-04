@@ -156,6 +156,40 @@ TunerPlugin(
 )
 ```
 
+## LangGraph / LangChain observability
+
+If your agent uses LangGraph or LangChain as the orchestration layer, install
+`tuner-langchain` and wire it in with `attach_langgraph()` or `attach_langchain()`:
+
+```python
+from tuner import TunerPlugin
+
+plugin = TunerPlugin(session, ctx)
+handler = plugin.attach_langgraph()
+
+agent = Agent(
+    llm=langchain.LLMAdapter(
+        graph=my_graph,
+        config={"callbacks": [handler]},
+    ),
+)
+```
+
+To limit what data is forwarded to Tuner, pass a `CaptureConfig`:
+
+```python
+from tuner import TunerPlugin
+from tuner_langchain import CaptureConfig
+
+plugin = TunerPlugin(session, ctx)
+handler = plugin.attach_langgraph(
+    capture=CaptureConfig(
+        tool_inputs=False,
+        node_instructions=False,
+    )
+)
+```
+
 ## Simulation correlation (SIP)
 
 Tuner simulations dial into your agent through the same SIP trunk that handles production phone calls. To match a simulation run with the session your agent submits, the SDK forwards LiveKit's `sip.callIDFull` attribute as a `sip_correlation_id`.
