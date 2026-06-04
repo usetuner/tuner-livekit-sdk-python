@@ -193,6 +193,11 @@ def to_create_call_request(
 
     Returns:
         Dict ready to POST to the Tuner API.
+
+    Notes:
+        ``config.recipient`` — callee phone number (e.g. ``"+15551234567"``) or SIP URL
+        (e.g. ``"sip:alice@example.com"``). Not auto-collected; included in the payload
+        only when the caller passes it explicitly to ``TunerPlugin``.
     """
     from livekit import rtc
 
@@ -276,6 +281,9 @@ def to_create_call_request(
 
     if state.caller_phone_number:
         payload["caller_phone_number"] = state.caller_phone_number
+
+    if config.recipient:
+        payload["recipient"] = config.recipient
 
     resolved_sip_call_id = config.sip_correlation_id or state.sip_call_id
     if resolved_sip_call_id:

@@ -25,6 +25,7 @@ class TunerConfig:
     extra_metadata: dict | None = None
     sip_correlation_id: str | None = None
     agent_version: str | None = None
+    recipient: str | None = None  # callee phone number or SIP URL; not auto-collected
     enabled: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
@@ -43,6 +44,7 @@ class TunerConfig:
         extra_metadata: dict | None = None,
         sip_correlation_id: str | None = None,
         agent_version: str | int | None = None,
+        recipient: str | None = None,
         enabled: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
@@ -58,6 +60,11 @@ class TunerConfig:
         Optional env vars:
             TUNER_BASE_URL       - API base URL (default: https://api.usetuner.ai)
             AGENT_VERSION        - Version identifier attached to every call
+
+        Optional args:
+            recipient            - Callee phone number or SIP URL (e.g. "+15551234567"
+                                   or "sip:alice@example.com"). Not auto-collected;
+                                   pass explicitly when known.
         """
         resolved_api_key = api_key or os.environ.get("TUNER_API_KEY", "")
         if not resolved_api_key:
@@ -108,6 +115,7 @@ class TunerConfig:
             extra_metadata=extra_metadata,
             sip_correlation_id=sip_correlation_id,
             agent_version=resolved_agent_version,
+            recipient=recipient,
             enabled=enabled,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,

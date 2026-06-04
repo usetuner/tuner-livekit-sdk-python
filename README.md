@@ -66,6 +66,20 @@ TunerPlugin(session, ctx, call_type="phone_call")
 TunerPlugin(session, ctx, call_type="web_call")
 ```
 
+### Recipient (callee)
+
+Pass the phone number or SIP URL of the called party when your agent initiates or routes outbound calls. This field is not auto-collected — supply it explicitly when known:
+
+```python
+# E.164 phone number
+TunerPlugin(session, ctx, recipient="+15551234567")
+
+# SIP URI
+TunerPlugin(session, ctx, recipient="sip:alice@example.com")
+```
+
+`recipient` is optional. If omitted it is simply not included in the call record.
+
 ### Recording URL
 
 Tuner requires a `recording_url` for every call. If you don't provide a resolver the plugin logs a warning and submits `"pending"` as a placeholder:
