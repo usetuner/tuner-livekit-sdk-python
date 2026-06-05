@@ -206,7 +206,7 @@ handler = plugin.attach_langgraph(
 
 ## Simulation correlation (SIP)
 
-Tuner simulations dial into your agent through the same SIP trunk that handles production phone calls. To match a simulation run with the session your agent submits, the SDK forwards LiveKit's `sip.callIDFull` attribute as a `sip_correlation_id`.
+Tuner simulations dial into your agent through the same SIP trunk that handles production phone calls. To match a simulation run with the session your agent submits, the SDK forwards LiveKit's `sip.callIDFull` attribute as a `sip_call_id`.
 
 This section covers the **SDK wiring only**. For LiveKit platform setup (SIP URI, inbound trunk, dispatch rule, Tuner SIP settings), see:
 
@@ -214,9 +214,9 @@ This section covers the **SDK wiring only**. For LiveKit platform setup (SIP URI
 
 ### Requirements
 
-- `tuner-livekit-sdk >= 0.1.5` (the `sip_correlation_id` argument was added in 0.1.5)
+- `tuner-livekit-sdk >= 0.1.5` (the `sip_call_id` argument was added in 0.1.5)
 
-### Step 1 — The `_extract_sip_correlation_id` helper
+### Step 1 — The `_extract_sip_call_id` helper
 
 This helper scans the LiveKit room for the SIP caller and returns their `sip.callIDFull` — the value Tuner uses to match a simulation run to the session your agent submits.
 
@@ -224,7 +224,7 @@ This helper scans the LiveKit room for the SIP caller and returns their `sip.cal
 from livekit import rtc
 
 
-def _extract_sip_correlation_id(ctx: JobContext) -> str | None:
+def _extract_sip_call_id(ctx: JobContext) -> str | None:
     for participant in ctx.room.remote_participants.values():
         if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
             continue
@@ -250,12 +250,12 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(...)
 
     await ctx.connect()
-    sip_correlation_id = _extract_sip_correlation_id(ctx)
+    sip_call_id = _extract_sip_call_id(ctx)
 
     TunerPlugin(
         session,
         ctx,
-        sip_correlation_id=sip_correlation_id,
+        sip_call_id=sip_call_id,
         # ...other options
     )
 
@@ -275,7 +275,7 @@ from livekit.agents import JobContext, AgentSession
 from tuner import TunerPlugin
 
 
-def _extract_sip_correlation_id(ctx: JobContext) -> str | None:
+def _extract_sip_call_id(ctx: JobContext) -> str | None:
     for participant in ctx.room.remote_participants.values():
         if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
             continue
@@ -302,7 +302,7 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(...)
 
     await ctx.connect()
-    sip_correlation_id = _extract_sip_correlation_id(ctx)
+    sip_call_id = _extract_sip_call_id(ctx)
 
     TunerPlugin(
         session,
@@ -313,7 +313,7 @@ async def entrypoint(ctx: JobContext):
         call_type="phone_call",
         recording_url_resolver=get_recording_url,
         cost_calculator=calculate_cost,
-        sip_correlation_id=sip_correlation_id,
+        sip_call_id=sip_call_id,
         extra_metadata={"env": "prod", "region": "us-east-1"},
         timeout_seconds=20.0,
         max_retries=3,
@@ -327,7 +327,7 @@ async def entrypoint(ctx: JobContext):
 
 - Python ≥ 3.10
 - `livekit-agents >= 1.4`
-- `tuner-livekit-sdk >= 0.1.5` (needed for `sip_correlation_id` / SIP correlation)
+- `tuner-livekit-sdk >= 0.1.5` (needed for `sip_call_id` / SIP correlation)
 - `aiohttp >= 3.9`
 
 ## License

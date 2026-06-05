@@ -23,7 +23,7 @@ class TunerConfig:
     recording_url_resolver: Callable[[str, str], Awaitable[str | None]] | None = None
     cost_calculator: Callable[[UsageSummary], float] | None = None
     extra_metadata: dict | None = None
-    sip_correlation_id: str | None = None
+    sip_call_id: str | None = None
     agent_version: str | None = None
     recipient: str | None = None  # callee phone number or SIP URL; not auto-collected
     enabled: bool = True
@@ -42,7 +42,7 @@ class TunerConfig:
         | None = None,
         cost_calculator: Callable[[UsageSummary], float] | None = None,
         extra_metadata: dict | None = None,
-        sip_correlation_id: str | None = None,
+        sip_call_id: str | None = None,
         agent_version: str | int | None = None,
         recipient: str | None = None,
         enabled: bool = True,
@@ -113,7 +113,7 @@ class TunerConfig:
             recording_url_resolver=recording_url_resolver,
             cost_calculator=cost_calculator,
             extra_metadata=extra_metadata,
-            sip_correlation_id=sip_correlation_id,
+            sip_call_id=sip_call_id,
             agent_version=resolved_agent_version,
             recipient=recipient,
             enabled=enabled,
