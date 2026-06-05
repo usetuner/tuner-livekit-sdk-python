@@ -82,7 +82,8 @@ class TunerPlugin:
             call_type="phone_call",          # override auto-detection
             recording_url_resolver=my_fn,    # async (room, job_id) -> str | None
             cost_calculator=my_cost_fn,      # (UsageSummary) -> float (cost in dollars)
-            sip_correlation_id=sip_id,       # canonical SIP correlation identifier
+            sip_call_id=sip_id,              # SIP call ID (sip.callIDFull attribute)
+            recipient="+15551234567",        # callee phone number or SIP URL (optional)
             extra_metadata={"env": "prod"},
             max_retries=3,
             timeout_seconds=30,
@@ -101,7 +102,8 @@ class TunerPlugin:
         call_type: str | None = None,
         recording_url_resolver: Callable | None = None,
         cost_calculator: Callable[[UsageSummary], float] | None = None,
-        sip_correlation_id: str | None = None,
+        sip_call_id: str | None = None,
+        recipient: str | None = None,
         extra_metadata: dict | None = None,
         agent_version: str | int | None = None,
         enabled: bool = True,
@@ -127,7 +129,8 @@ class TunerPlugin:
                 call_type=call_type,
                 recording_url_resolver=recording_url_resolver,
                 cost_calculator=cost_calculator,
-                sip_correlation_id=sip_correlation_id,
+                sip_call_id=sip_call_id,
+                recipient=recipient,
                 extra_metadata=extra_metadata,
                 agent_version=agent_version,
                 enabled=enabled,

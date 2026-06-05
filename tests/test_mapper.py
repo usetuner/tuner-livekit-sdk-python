@@ -486,7 +486,7 @@ def test_to_create_call_request_with_sip_detection():
         workspace_id=123,
         agent_id="test_agent",
         call_type=None,  # Auto-detect
-        sip_correlation_id="sip-call-id-full-123",
+        sip_call_id="sip-call-id-full-123",
     )
     ctx = MockJobContext()
     session = make_mock_session()
@@ -501,7 +501,7 @@ def test_to_create_call_request_with_sip_detection():
 
 
 def test_to_create_call_request_uses_state_sip_call_id_when_config_missing():
-    """Falls back to SessionState SIP ID when config sip_correlation_id is not set."""
+    """Falls back to SessionState SIP ID when config sip_call_id is not set."""
     from tuner.collector import SessionState
     from tuner.config import TunerConfig
 
