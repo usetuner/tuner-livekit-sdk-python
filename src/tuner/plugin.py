@@ -20,7 +20,7 @@ try:
     from tuner_langchain import TunerAccumulator
     from tuner_langchain.graph_wrapper import wrap_chain as _lg_wrap_chain
     from tuner_langchain.graph_wrapper import wrap_graph as _lg_wrap_graph
-
+    from ._langchain_stream_filter import _ToolMessageFilter
     _LANGCHAIN_AVAILABLE = True
 except ImportError:
     logger.warning(
@@ -230,7 +230,8 @@ class TunerPlugin:
             )
         if self._lg_accumulator is None:
             self._lg_accumulator = TunerAccumulator(capture=capture)
-        return _lg_wrap_graph(graph, accumulator=self._lg_accumulator)
+        wrapped = _lg_wrap_graph(graph, accumulator=self._lg_accumulator)
+        return _ToolMessageFilter(wrapped)
 
     def wrap_chain(
         self,

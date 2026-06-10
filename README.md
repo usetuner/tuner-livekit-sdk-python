@@ -173,18 +173,35 @@ TunerPlugin(
 ## LangGraph / LangChain observability
 
 If your agent uses LangGraph or LangChain as the orchestration layer, install
-`tuner-langchain` and wire it in with `attach_langgraph()` or `attach_langchain()`:
+`tuner-langchain` and wire it in with `wrap_graph()` or `wrap_chain()`:
 
 ```python
 from tuner import TunerPlugin
+from livekit.plugins import langchain
 
 plugin = TunerPlugin(session, ctx)
-handler = plugin.attach_langgraph()
+wrapped_graph = plugin.wrap_graph(my_graph)
 
 agent = Agent(
+    instructions="",
     llm=langchain.LLMAdapter(
-        graph=my_graph,
-        config={"callbacks": [handler]},
+        wrapped_graph,
+        stream_mode="custom",
+        config={"configurable": {"thread_id": thread_id}},
+    ),
+)
+```
+
+For plain LangChain (non-graph):
+
+```python
+wrapped_chain = plugin.wrap_chain(my_chain)
+agent = Agent(
+    instructions="",
+    llm=langchain.LLMAdapter(
+        wrapped_chain,
+        stream_mode="messages",
+        config={"configurable": {"thread_id": thread_id}},
     ),
 )
 ```
@@ -196,7 +213,8 @@ from tuner import TunerPlugin
 from tuner_langchain import CaptureConfig
 
 plugin = TunerPlugin(session, ctx)
-handler = plugin.attach_langgraph(
+wrapped_graph = plugin.wrap_graph(
+    my_graph,
     capture=CaptureConfig(
         tool_inputs=False,
         node_instructions=False,
