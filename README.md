@@ -103,7 +103,7 @@ TunerPlugin(session, ctx, recording_url_resolver=egress_resolver)
 
 ### Cost calculation
 
-Provide a callable that receives a `UsageSummary` and returns the call cost in USD cents:
+Provide a callable that receives a `UsageSummary` and returns the call cost in **cents**:
 
 ```python
 def calculate_cost(usage) -> float:
@@ -111,7 +111,8 @@ def calculate_cost(usage) -> float:
     llm_cost += usage.llm_completion_tokens * 0.000_015
     tts_cost  = usage.tts_characters_count  * 0.000_030
     stt_cost  = usage.stt_audio_duration    * 0.000_006
-    return llm_cost + tts_cost + stt_cost
+    total_dollars = llm_cost + tts_cost + stt_cost
+    return round(total_dollars * 100, 2)  # dollars -> cents
 
 TunerPlugin(session, ctx, cost_calculator=calculate_cost)
 ```
@@ -172,39 +173,26 @@ TunerPlugin(
 
 ## LangGraph / LangChain observability
 
-If your agent uses LangGraph or LangChain as the orchestration layer, install
-`tuner-langchain` and wire it in with `wrap_graph()` or `wrap_chain()`:
+`tuner-langchain` ships as a dependency of `tuner-livekit-sdk`, so no separate
+install step is needed. If your agent uses LangGraph or LangChain as the
+orchestration layer, wire it in with `wrap_graph()` or `wrap_chain()`. Each
+returns a drop-in replacement for the graph/chain you pass in — hand it
+straight to `LLMAdapter`, no callbacks to wire up:
 
 ```python
 from tuner import TunerPlugin
 from livekit.plugins import langchain
 
 plugin = TunerPlugin(session, ctx)
-wrapped_graph = plugin.wrap_graph(my_graph)
 
-agent = Agent(
-    instructions="",
-    llm=langchain.LLMAdapter(
-        wrapped_graph,
-        stream_mode="custom",
-        config={"configurable": {"thread_id": thread_id}},
-    ),
+llm = langchain.LLMAdapter(
+    plugin.wrap_graph(my_graph),
+    stream_mode="messages",
 )
 ```
 
-For plain LangChain (non-graph):
-
-```python
-wrapped_chain = plugin.wrap_chain(my_chain)
-agent = Agent(
-    instructions="",
-    llm=langchain.LLMAdapter(
-        wrapped_chain,
-        stream_mode="messages",
-        config={"configurable": {"thread_id": thread_id}},
-    ),
-)
-```
+Use `wrap_chain()` instead of `wrap_graph()` for a plain (non-graph) LangChain
+runnable.
 
 To limit what data is forwarded to Tuner, pass a `CaptureConfig`:
 
@@ -218,7 +206,7 @@ wrapped_graph = plugin.wrap_graph(
     capture=CaptureConfig(
         tool_inputs=False,
         node_instructions=False,
-    )
+    ),
 )
 ```
 
@@ -305,11 +293,12 @@ def _extract_sip_call_id(ctx: JobContext) -> str | None:
 
 
 def calculate_cost(usage) -> float:
-    return (
+    total_dollars = (
         usage.llm_prompt_tokens     * 0.000_003
         + usage.llm_completion_tokens * 0.000_015
         + usage.tts_characters_count  * 0.000_030
     )
+    return round(total_dollars * 100, 2)  # cents — the Tuner API expects cents
 
 
 async def get_recording_url(room_name: str, job_id: str) -> str:
@@ -347,6 +336,7 @@ async def entrypoint(ctx: JobContext):
 - `livekit-agents >= 1.4`
 - `tuner-livekit-sdk >= 0.1.5` (needed for `sip_call_id` / SIP correlation)
 - `aiohttp >= 3.9`
+- `tuner-langchain >= 0.1.0` (installed automatically as a dependency; used by `wrap_graph()` / `wrap_chain()`)
 
 ## License
 
