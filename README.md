@@ -103,7 +103,7 @@ TunerPlugin(session, ctx, recording_url_resolver=egress_resolver)
 
 ### Cost calculation
 
-Provide a callable that receives a `UsageSummary` and returns the call cost in USD (dollars):
+Provide a callable that receives a `UsageSummary` and returns the call cost in **cents**:
 
 ```python
 def calculate_cost(usage) -> float:
@@ -111,7 +111,8 @@ def calculate_cost(usage) -> float:
     llm_cost += usage.llm_completion_tokens * 0.000_015
     tts_cost  = usage.tts_characters_count  * 0.000_030
     stt_cost  = usage.stt_audio_duration    * 0.000_006
-    return llm_cost + tts_cost + stt_cost
+    total_dollars = llm_cost + tts_cost + stt_cost
+    return round(total_dollars * 100, 2)  # dollars -> cents
 
 TunerPlugin(session, ctx, cost_calculator=calculate_cost)
 ```
@@ -292,11 +293,12 @@ def _extract_sip_call_id(ctx: JobContext) -> str | None:
 
 
 def calculate_cost(usage) -> float:
-    return (
+    total_dollars = (
         usage.llm_prompt_tokens     * 0.000_003
         + usage.llm_completion_tokens * 0.000_015
         + usage.tts_characters_count  * 0.000_030
     )
+    return round(total_dollars * 100, 2)  # cents — the Tuner API expects cents
 
 
 async def get_recording_url(room_name: str, job_id: str) -> str:

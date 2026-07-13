@@ -81,7 +81,7 @@ class TunerPlugin:
             agent_id="my-agent",
             call_type="phone_call",          # override auto-detection
             recording_url_resolver=my_fn,    # async (room, job_id) -> str | None
-            cost_calculator=my_cost_fn,      # (UsageSummary) -> float (cost in dollars)
+            cost_calculator=my_cost_fn,      # (UsageSummary) -> float (cost in cents)
             sip_call_id=sip_id,              # SIP call ID (sip.callIDFull attribute)
             recipient="+15551234567",        # callee phone number or SIP URL (optional)
             extra_metadata={"env": "prod"},
