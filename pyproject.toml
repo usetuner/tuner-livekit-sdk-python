@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tuner-livekit-sdk"
-version = "0.1.7"
+version = "0.1.8"
 description = "Automatically ingest LiveKit Agents session data into the Tuner observability API"
 readme = "README.md"
 license = "MIT"
@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
     "aiohttp>=3.9",
     "livekit-agents>=1.4",
-    "tuner-langchain>=0.1.0",
+    "tuner-langchain>=0.1.1",
 ]
 
 [project.urls]
