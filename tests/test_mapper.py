@@ -910,3 +910,107 @@ def test_to_create_call_request_with_lg_acc():
     assert node_seg["text"] == "intent_node"
     assert node_seg["start_ms"] >= 0
     assert node_seg["metadata"]["duration_ms"] is not None
+
+
+# ---------------------------------------------------------------------------
+# EOU latency (end-of-utterance delay)
+# ---------------------------------------------------------------------------
+
+
+def test_user_segment_includes_eou_delay():
+    created = 1_700_000_000.0
+    msg = ChatMessage(
+        role="user",
+        content=["Hello"],
+        created_at=created,
+        metrics={
+            "started_speaking_at": created,
+            "stopped_speaking_at": created + 1.0,
+            "end_of_turn_delay": 0.82,
+        },
+    )
+    segments = map_history_to_segments([msg], session_start_ts=created)
+    assert segments[0]["metadata"]["eou_delay"] == 820
+
+
+def test_user_segment_eou_delay_none_when_absent():
+    segments = map_history_to_segments(
+        [user_msg("Hello")], session_start_ts=1_700_000_000.0
+    )
+    assert segments[0]["metadata"]["eou_delay"] is None
+
+
+def test_build_eou_summary_percentiles():
+    from tuner.mapper import build_eou_summary
+
+    metrics = [
+        {"timestamp": 1.0, "eou_delay_ms": d, "transcription_delay_ms": 0, "speech_id": f"s{i}"}
+        for i, d in enumerate([500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 2000])
+    ]
+    summary = build_eou_summary(metrics)
+    assert summary["turn_count"] == 10
+    assert summary["measured_turn_count"] == 10
+    assert summary["wait_ms_p50"] == 900  # nearest-rank over sorted list
+    assert summary["wait_ms_p90"] == 1300
+    assert summary["per_turn"] == metrics
+
+
+def test_build_eou_summary_excludes_zero_delays_from_percentiles():
+    from tuner.mapper import build_eou_summary
+
+    metrics = [
+        {"timestamp": 1.0, "eou_delay_ms": 0, "transcription_delay_ms": 0, "speech_id": "s0"},
+        {"timestamp": 2.0, "eou_delay_ms": 800, "transcription_delay_ms": 0, "speech_id": "s1"},
+    ]
+    summary = build_eou_summary(metrics)
+    assert summary["turn_count"] == 2
+    assert summary["measured_turn_count"] == 1
+    assert summary["wait_ms_p50"] == 800
+    assert summary["wait_ms_p90"] == 800
+
+
+def test_build_eou_summary_empty_returns_none():
+    from tuner.mapper import build_eou_summary
+
+    assert build_eou_summary([]) is None
+
+
+def test_build_eou_summary_all_zero_has_no_percentiles():
+    from tuner.mapper import build_eou_summary
+
+    metrics = [
+        {"timestamp": 1.0, "eou_delay_ms": 0, "transcription_delay_ms": 0, "speech_id": "s0"},
+    ]
+    summary = build_eou_summary(metrics)
+    assert summary["turn_count"] == 1
+    assert "wait_ms_p50" not in summary
+
+
+def test_payload_includes_eou_summary():
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
+
+    state = SessionState(start_timestamp=1_700_000_000.0, end_timestamp=1_700_000_010.0)
+    state.eou_metrics.append(
+        {"timestamp": 1_700_000_002.0, "eou_delay_ms": 750, "transcription_delay_ms": 300, "speech_id": "sp1"}
+    )
+    config = TunerConfig(api_key="tr_api_test", workspace_id=1, agent_id="agent")
+    payload = to_create_call_request(
+        make_mock_session(), state, [], config, MockJobContext()
+    )
+    eou = payload["general_meta_data_raw"]["eou"]
+    assert eou["turn_count"] == 1
+    assert eou["wait_ms_p50"] == 750
+    assert eou["per_turn"][0]["speech_id"] == "sp1"
+
+
+def test_payload_omits_eou_when_no_turns():
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
+
+    state = SessionState(start_timestamp=1_700_000_000.0, end_timestamp=1_700_000_010.0)
+    config = TunerConfig(api_key="tr_api_test", workspace_id=1, agent_id="agent")
+    payload = to_create_call_request(
+        make_mock_session(), state, [], config, MockJobContext()
+    )
+    assert "eou" not in payload["general_meta_data_raw"]

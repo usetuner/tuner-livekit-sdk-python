@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 from enum import Enum
 
-from livekit.agents.metrics import UsageCollector, UsageSummary
+from livekit.agents.metrics import EOUMetrics, UsageCollector, UsageSummary
 
 
 class DisconnectReason(str, Enum):
@@ -26,11 +26,27 @@ class SessionState:
     caller_phone_number: str | None = None
     sip_call_id: str | None = None
     close_error: Optional[Exception] = None
+    eou_metrics: list[dict] = field(default_factory=list, repr=False)
     _shutdown_reason: str = field(default="", init=False, repr=False)
     _usage_collector: UsageCollector = field(default_factory=UsageCollector, repr=False)
 
     def record_metrics(self, metrics: Any) -> None:
-        """Feed an AgentMetrics event into the usage collector."""
+        """Feed an AgentMetrics event into the usage collector.
+
+        EOUMetrics (one per committed user turn) are kept separately —
+        UsageCollector ignores them, but they carry the end-of-utterance
+        delay used for per-call EOU latency rollups.
+        """
+        if isinstance(metrics, EOUMetrics):
+            self.eou_metrics.append(
+                {
+                    "timestamp": metrics.timestamp,
+                    "eou_delay_ms": int(metrics.end_of_utterance_delay * 1000),
+                    "transcription_delay_ms": int(metrics.transcription_delay * 1000),
+                    "speech_id": metrics.speech_id,
+                }
+            )
+            return
         self._usage_collector.collect(metrics)
 
     def record_close(self, error: Optional[Exception]) -> None:

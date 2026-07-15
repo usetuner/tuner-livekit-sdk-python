@@ -93,3 +93,34 @@ def test_get_usage_summary_empty():
     assert summary.llm_completion_tokens == 0
     assert summary.tts_characters_count == 0
     assert summary.stt_audio_duration == 0.0
+
+
+def _eou_metrics(delay: float, transcription_delay: float = 0.2, speech_id="s1"):
+    from livekit.agents.metrics import EOUMetrics
+
+    return EOUMetrics(
+        timestamp=time.time(),
+        end_of_utterance_delay=delay,
+        transcription_delay=transcription_delay,
+        on_user_turn_completed_delay=0.0,
+        speech_id=speech_id,
+    )
+
+
+def test_record_eou_metrics_captured_separately():
+    state = SessionState()
+    state.record_metrics(_eou_metrics(0.85, 0.4, "speech_a"))
+    state.record_metrics(_eou_metrics(0.55, 0.3, "speech_b"))
+
+    assert len(state.eou_metrics) == 2
+    first = state.eou_metrics[0]
+    assert first["eou_delay_ms"] == 850
+    assert first["transcription_delay_ms"] == 400
+    assert first["speech_id"] == "speech_a"
+    # EOU events must not disturb the usage summary
+    assert state.get_usage_summary().llm_prompt_tokens == 0
+
+
+def test_eou_metrics_empty_by_default():
+    state = SessionState()
+    assert state.eou_metrics == []

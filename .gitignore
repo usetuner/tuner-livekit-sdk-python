@@ -27,3 +27,6 @@ htmlcov/
 .vscode/
 *.swp
 *.swo
+
+# Local agent starter (not part of this repo)
+agent-starter-python-main/

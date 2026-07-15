@@ -102,6 +102,9 @@ def map_history_to_segments(
                     "e2e_latency": _seconds_to_milliseconds(
                         item.metrics.get("e2e_latency")
                     ),
+                    "eou_delay": _seconds_to_milliseconds(
+                        item.metrics.get("end_of_turn_delay")
+                    ),
                     "transcript_confidence": item.transcript_confidence,
                 },
             }
@@ -171,6 +174,35 @@ def build_plain_transcript(items: list[Any]) -> str:
 def _model_name(component: Any) -> str | None:
     # Handles None or components without a .model attribute
     return getattr(component, "model", None)
+
+
+def _percentile(sorted_values: list[int], pct: float) -> int:
+    """Nearest-rank percentile over a pre-sorted list."""
+    idx = min(len(sorted_values) - 1, max(0, round(pct * (len(sorted_values) - 1))))
+    return sorted_values[idx]
+
+
+def build_eou_summary(eou_metrics: list[dict]) -> dict | None:
+    """
+    Roll per-turn EOUMetrics into a per-call EOU latency summary.
+
+    LiveKit reports end_of_utterance_delay=0.0 when VAD could not detect the
+    end of speech; those turns are excluded from percentiles (they would fake
+    a great p50) but kept in the raw per_turn list for debugging.
+    """
+    if not eou_metrics:
+        return None
+
+    delays = sorted(m["eou_delay_ms"] for m in eou_metrics if m["eou_delay_ms"] > 0)
+    summary: dict = {
+        "turn_count": len(eou_metrics),
+        "per_turn": eou_metrics,
+    }
+    if delays:
+        summary["wait_ms_p50"] = _percentile(delays, 0.50)
+        summary["wait_ms_p90"] = _percentile(delays, 0.90)
+        summary["measured_turn_count"] = len(delays)
+    return summary
 
 
 def to_create_call_request(
@@ -255,6 +287,10 @@ def to_create_call_request(
         "usage_token": usage_dict,
         "ai_models": ai_models,
     }
+
+    eou_summary = build_eou_summary(state.eou_metrics)
+    if eou_summary is not None:
+        general_meta["eou"] = eou_summary
     if config.extra_metadata:
         general_meta.update(config.extra_metadata)
 
