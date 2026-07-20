@@ -910,3 +910,35 @@ def test_to_create_call_request_with_lg_acc():
     assert node_seg["text"] == "intent_node"
     assert node_seg["start_ms"] >= 0
     assert node_seg["metadata"]["duration_ms"] is not None
+
+def test_eou_delay_mapped_from_end_of_turn_delay():
+    """eou_delay is read from end_of_turn_delay (current livekit key) and converted to ms."""
+    session_start = 1_700_000_000.0
+    user = ChatMessage(
+        id="u1",
+        role="user",
+        content=["book an appointment"],
+        created_at=session_start + 1.0,
+        metrics={
+            "started_speaking_at": session_start,
+            "stopped_speaking_at": session_start + 1.0,
+            "transcription_delay": 0.371,
+            "end_of_turn_delay": 0.548,
+        },
+    )
+    seg = map_history_to_segments([user], session_start_ts=session_start)[0]
+    assert seg["metadata"]["eou_delay"] == 548
+
+
+def test_eou_delay_none_when_absent():
+    """Turns with no EOU metric (fragments, preemptive paths) map eou_delay to None."""
+    session_start = 1_700_000_000.0
+    user = ChatMessage(
+        id="u1",
+        role="user",
+        content=["on Monday"],
+        created_at=session_start + 1.0,
+        metrics={"transcription_delay": 0},  # no eou key at all
+    )
+    seg = map_history_to_segments([user], session_start_ts=session_start)[0]
+    assert seg["metadata"]["eou_delay"] is None
