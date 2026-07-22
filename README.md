@@ -218,6 +218,8 @@ Each item in `session.history` is mapped to a transcript segment (`role`, `text`
 | `tts_node_ttfb` | `int (ms) \| null` | Time for the TTS node to return its first audio chunk |
 | `e2e_latency` | `int (ms) \| null` | Time from end of user speech to the agent beginning its response |
 
+All timing fields above are taken directly from LiveKit's own per-turn metrics (EOUMetrics, STT/LLM/TTS metrics) and passed through unchanged — the SDK does not recompute them.
+
 Tool calls (`agent_function` / `agent_result` roles) and, when LangGraph/LangChain instrumentation is enabled, `node_transition` segments are interleaved into the same timeline, sorted by `start_ms`.
 
 ## LangGraph / LangChain observability
