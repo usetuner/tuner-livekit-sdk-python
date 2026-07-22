@@ -1,6 +1,38 @@
 # tuner-livekit-sdk
 
+[![PyPI version](https://img.shields.io/pypi/v/tuner-livekit-sdk.svg)](https://pypi.org/project/tuner-livekit-sdk/)
+[![Python versions](https://img.shields.io/pypi/pyversions/tuner-livekit-sdk.svg)](https://pypi.org/project/tuner-livekit-sdk/)
+[![Tests](https://github.com/usetuner/tuner-livekit-sdk-python/actions/workflows/tests.yml/badge.svg)](https://github.com/usetuner/tuner-livekit-sdk-python/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Automatically ingest [LiveKit Agents](https://github.com/livekit/agents) session data into the [Tuner](https://usetuner.ai) observability API.
+
+Drop it into your `entrypoint` and every session — transcript, tool calls, timing metrics, usage, cost — is submitted to Tuner when the call ends. No manual event wiring required.
+
+## Features
+
+- **Zero-friction wiring** — one line after `AgentSession` creation; the plugin hooks itself into session lifecycle events.
+- **Rich per-turn timing** — STT/LLM/TTS latency, end-of-turn delay, and end-to-end latency captured per transcript segment.
+- **Tool call tracking** — function calls and their results are merged into the timeline with real timing data.
+- **LangGraph / LangChain support** — via the bundled `tuner-langchain` package, capture node transitions and tool calls straight from your graph.
+- **SIP simulation correlation** — match Tuner-initiated simulation calls to your production SIP trunk.
+- **Cost calculation** — plug in your own pricing function; Tuner reports cost per call.
+- **Resilient delivery** — configurable timeouts and retries on transient failures.
+
+## Table of Contents
+
+- [Installation](#installation-of-the-library-into-your-livekit-project)
+- [Quickstart](#quickstart)
+- [Configuration](#configuration)
+- [Options](#options)
+- [Data captured](#data-captured)
+- [LangGraph / LangChain observability](#langgraph--langchain-observability)
+- [Simulation correlation (SIP)](#simulation-correlation-sip)
+- [Privacy & data handling](#privacy--data-handling)
+- [Requirements](#requirements)
+- [Support](#support)
+- [Development](#development)
+- [License](#license)
 
 ## Installation of the Library into your Livekit project
 
@@ -171,6 +203,25 @@ TunerPlugin(
 )
 ```
 
+## Data captured
+
+Each item in `session.history` is mapped to a transcript segment (`role`, `text`, `start_ms`, `end_ms`, `metadata`). For `user` / `agent` segments, `metadata` includes the following per-turn timing and quality fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | LiveKit ChatContext item ID |
+| `interrupted` | `bool` | Whether this turn was interrupted before completing |
+| `transcript_confidence` | `float \| null` | STT confidence score for user turns |
+| `stt_node_ttfb` | `int (ms) \| null` | Time to obtain the transcript after the user stopped speaking |
+| `eou_delay` | `int (ms) \| null` | Time between end of user speech and the decision to end their turn |
+| `llm_node_ttft` | `int (ms) \| null` | Time for the LLM node to return its first token |
+| `tts_node_ttfb` | `int (ms) \| null` | Time for the TTS node to return its first audio chunk |
+| `e2e_latency` | `int (ms) \| null` | Time from end of user speech to the agent beginning its response |
+
+All timing fields above are taken directly from LiveKit's own per-turn metrics (EOUMetrics, STT/LLM/TTS metrics) and passed through unchanged — the SDK does not recompute them.
+
+Tool calls (`agent_function` / `agent_result` roles) and, when LangGraph/LangChain instrumentation is enabled, `node_transition` segments are interleaved into the same timeline, sorted by `start_ms`.
+
 ## LangGraph / LangChain observability
 
 `tuner-langchain` ships as a dependency of `tuner-livekit-sdk`, so no separate
@@ -330,24 +381,50 @@ async def entrypoint(ctx: JobContext):
     await session.start(...)
 ```
 
+## Privacy & data handling
+
+The plugin submits the following to the Tuner API for each call: the plain-text transcript, per-turn timing metadata (see [Data captured](#data-captured)), tool call names/arguments/results, token/character/audio usage counts, and any `extra_metadata` you configure. It does not access raw audio, video, or room recordings directly — recordings are only referenced by the URL your `recording_url_resolver` returns.
+
+Use `CaptureConfig` (see [LangGraph / LangChain observability](#langgraph--langchain-observability)) to exclude tool inputs or node instructions from LangGraph/LangChain traces, and `enabled=False` to disable submission entirely for local development or test environments.
+
 ## Requirements
 
 - Python ≥ 3.10
 - `livekit-agents >= 1.4`
 - `tuner-livekit-sdk >= 0.1.5` (needed for `sip_call_id` / SIP correlation)
 - `aiohttp >= 3.9`
-- `tuner-langchain >= 0.1.0` (installed automatically as a dependency; used by `wrap_graph()` / `wrap_chain()`)
+- `tuner-langchain >= 0.1.1` (installed automatically as a dependency; used by `wrap_graph()` / `wrap_chain()`)
+
+## Support
+
+- Docs: [docs.usetuner.ai](https://docs.usetuner.ai)
+- Issues / feature requests: [GitHub Issues](https://github.com/usetuner/tuner-livekit-sdk-python/issues)
+- Email: [support@usetuner.ai](mailto:support@usetuner.ai)
+- Release notes: [CHANGELOG.md](CHANGELOG.md)
+
+## Development
+
+Set up a local environment:
+
+```bash
+uv sync --dev
+source .venv/bin/activate
+```
+
+Run the test suite:
+
+```bash
+uv run pytest -v
+```
+
+### Publishing to PyPI
+
+```bash
+pip install build twine
+python -m build
+twine upload dist/*
+```
 
 ## License
 
 MIT
-
-## Installation dependencies to build the library
-uv sync --dev
-source .venv/bin/activate
-
-
-## Publish to Pypi
-pip install build twine
-python -m build
-twine upload dist/*

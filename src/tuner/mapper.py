@@ -99,6 +99,9 @@ def map_history_to_segments(
                     "stt_node_ttfb": _seconds_to_milliseconds(
                         item.metrics.get("transcription_delay")
                     ),
+                    "eou_delay": _seconds_to_milliseconds(
+                        item.metrics.get("end_of_turn_delay")
+                    ),
                     "e2e_latency": _seconds_to_milliseconds(
                         item.metrics.get("e2e_latency")
                     ),
