@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from .client import submit_call
 from .collector import DisconnectReason, SessionState
 from .config import TunerConfig
+from .tracing import setup_call_tracing
 from .mapper import to_create_call_request
 
 if TYPE_CHECKING:
@@ -107,6 +108,7 @@ class TunerPlugin:
         extra_metadata: dict | None = None,
         agent_version: str | int | None = None,
         enabled: bool = True,
+        traces_enabled: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
     ) -> None:
@@ -134,6 +136,7 @@ class TunerPlugin:
                 extra_metadata=extra_metadata,
                 agent_version=agent_version,
                 enabled=enabled,
+                traces_enabled=traces_enabled,
                 timeout_seconds=timeout_seconds,
                 max_retries=max_retries,
             )
@@ -143,11 +146,24 @@ class TunerPlugin:
 
         self._setup_event_listeners()
         self._register_shutdown_hook()
+        self._setup_trace_forwarding()
         logger.debug(
             "TunerPlugin initialized for workspace=%d agent=%s",
             self._config.workspace_id,
             self._config.agent_id,
         )
+
+    def _setup_trace_forwarding(self) -> None:
+        """Send this session's OTel spans to Tuner, tagged with the call id (ENG-1233).
+
+        Done here in the constructor because it has to happen before any span is emitted,
+        and `ctx.job.id` — the same value reported to Tuner as the call id — is already
+        available. Doing it later would miss the spans from the start of the call.
+        """
+        if self._config is None or not self._config.traces_enabled:
+            return
+
+        setup_call_tracing(config=self._config, call_id=str(self._ctx.job.id))
 
     def _setup_event_listeners(self) -> None:
         from livekit import rtc

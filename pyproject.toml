@@ -30,6 +30,15 @@ dependencies = [
     "tuner-langchain>=0.1.1",
 ]
 
+[project.optional-dependencies]
+# Forwarding OTel spans to Tuner (ENG-1233). An extra rather than a hard dependency:
+# customers who do not want the Trace tab should not have to install the OTel SDK. The
+# code degrades to a no-op when these are absent.
+traces = [
+    "opentelemetry-sdk>=1.30.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.30.0",
+]
+
 [project.urls]
 Homepage     = "https://usetuner.ai"
 Documentation = "https://docs.usetuner.ai"
