@@ -125,11 +125,11 @@ def test_a_failure_is_swallowed_rather_than_breaking_the_call():
 
 
 def test_config_defaults_traces_on():
-    assert _config().traces_enabled is True
+    assert _config().forward_traces is True
 
 
 def test_traces_can_be_turned_off():
-    assert _config(traces_enabled=False).traces_enabled is False
+    assert _config(forward_traces=False).forward_traces is False
 
 
 # --- plugin wiring -------------------------------------------------------------------
@@ -174,7 +174,7 @@ def test_the_plugin_skips_tracing_when_it_is_turned_off():
             api_key="tr_api_test",
             workspace_id=42,
             agent_id="agent-1",
-            traces_enabled=False,
+            forward_traces=False,
         )
 
     setup.assert_not_called()

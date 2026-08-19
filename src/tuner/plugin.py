@@ -108,7 +108,7 @@ class TunerPlugin:
         extra_metadata: dict | None = None,
         agent_version: str | int | None = None,
         enabled: bool = True,
-        traces_enabled: bool = True,
+        forward_traces: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
     ) -> None:
@@ -136,7 +136,7 @@ class TunerPlugin:
                 extra_metadata=extra_metadata,
                 agent_version=agent_version,
                 enabled=enabled,
-                traces_enabled=traces_enabled,
+                forward_traces=forward_traces,
                 timeout_seconds=timeout_seconds,
                 max_retries=max_retries,
             )
@@ -160,7 +160,7 @@ class TunerPlugin:
         and `ctx.job.id` — the same value reported to Tuner as the call id — is already
         available. Doing it later would miss the spans from the start of the call.
         """
-        if self._config is None or not self._config.traces_enabled:
+        if self._config is None or not self._config.forward_traces:
             return
 
         setup_call_tracing(config=self._config, call_id=str(self._ctx.job.id))

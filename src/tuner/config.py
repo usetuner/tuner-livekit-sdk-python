@@ -30,7 +30,7 @@ class TunerConfig:
     # Forward the session's OTel spans to Tuner so the call's Trace tab is populated.
     # No-ops unless the optional OTel packages are installed: pip install
     # 'tuner-livekit-sdk[traces]'
-    traces_enabled: bool = True
+    forward_traces: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
 
@@ -50,7 +50,7 @@ class TunerConfig:
         agent_version: str | int | None = None,
         recipient: str | None = None,
         enabled: bool = True,
-        traces_enabled: bool = True,
+        forward_traces: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
     ) -> "TunerConfig":
@@ -122,7 +122,7 @@ class TunerConfig:
             agent_version=resolved_agent_version,
             recipient=recipient,
             enabled=enabled,
-            traces_enabled=traces_enabled,
+            forward_traces=forward_traces,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
         )
