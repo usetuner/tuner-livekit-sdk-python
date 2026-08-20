@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-08-19
+
+### Added
+
+- **OpenTelemetry trace forwarding to Tuner** — LiveKit Agents' own spans are exported to Tuner and shown as a trace tree on the call details page. Enabled by default; pass `forward_traces=False` to `TunerPlugin` to turn it off. Every span is tagged with the call id so the trace correlates to the call without any wiring on your side.
+- `traces` optional extra (`pip install tuner-livekit-sdk[traces]`) for the OpenTelemetry SDK and OTLP HTTP exporter. Not a hard dependency: without it, trace forwarding is a no-op and nothing else changes.
+
 ## [0.1.9] - 2026-07-20
 
 ### Added

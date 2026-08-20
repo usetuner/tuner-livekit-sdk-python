@@ -27,6 +27,10 @@ class TunerConfig:
     agent_version: str | None = None
     recipient: str | None = None  # callee phone number or SIP URL; not auto-collected
     enabled: bool = True
+    # Forward the session's OTel spans to Tuner so the call's Trace tab is populated.
+    # No-ops unless the optional OTel packages are installed: pip install
+    # 'tuner-livekit-sdk[traces]'
+    forward_traces: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
 
@@ -46,6 +50,7 @@ class TunerConfig:
         agent_version: str | int | None = None,
         recipient: str | None = None,
         enabled: bool = True,
+        forward_traces: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
     ) -> "TunerConfig":
@@ -117,6 +122,7 @@ class TunerConfig:
             agent_version=resolved_agent_version,
             recipient=recipient,
             enabled=enabled,
+            forward_traces=forward_traces,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
         )

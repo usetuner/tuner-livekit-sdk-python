@@ -26,6 +26,7 @@ Drop it into your `entrypoint` and every session — transcript, tool calls, tim
 - [Configuration](#configuration)
 - [Options](#options)
 - [Data captured](#data-captured)
+- [Trace view (OpenTelemetry)](#trace-view-opentelemetry)
 - [LangGraph / LangChain observability](#langgraph--langchain-observability)
 - [Simulation correlation (SIP)](#simulation-correlation-sip)
 - [Privacy & data handling](#privacy--data-handling)
@@ -221,6 +222,57 @@ Each item in `session.history` is mapped to a transcript segment (`role`, `text`
 All timing fields above are taken directly from LiveKit's own per-turn metrics (EOUMetrics, STT/LLM/TTS metrics) and passed through unchanged — the SDK does not recompute them.
 
 Tool calls (`agent_function` / `agent_result` roles) and, when LangGraph/LangChain instrumentation is enabled, `node_transition` segments are interleaved into the same timeline, sorted by `start_ms`.
+
+## Trace view (OpenTelemetry)
+
+LiveKit Agents already emits OpenTelemetry spans for every session — STT, LLM, TTS, tool
+calls, end-of-utterance decisions. The plugin forwards them to Tuner, which shows them as a
+trace tree on the call details page: what ran, in what order, and how long each step took.
+
+### Setup
+
+Install the extra:
+
+```bash
+pip install 'tuner-livekit-sdk[traces]'
+```
+
+That is the whole setup. You do **not** need to enable telemetry in LiveKit, build a
+`TracerProvider`, choose an exporter, or set any `OTEL_*` environment variable — the plugin
+does all of that using the API key and base URL you already pass it, and tags every span
+with the call id so the trace lands on the right call.
+
+```python
+# No tracing-specific arguments needed.
+TunerPlugin(session, ctx, api_key=..., agent_id=...)
+```
+
+### Turning it off
+
+```python
+TunerPlugin(session, ctx, forward_traces=False)
+```
+
+Tracing is also a no-op — with a debug log, never an error — when the `traces` extra is not
+installed. It can never fail a call.
+
+### If you already export traces somewhere else
+
+Your setup is preserved. When the plugin finds a `TracerProvider` you configured, it adds
+Tuner as an additional destination rather than replacing it, so your existing backend keeps
+receiving the same spans.
+
+### What is stored
+
+The span tree — names, timings, parent relationships, status — plus metrics and
+configuration: model names, time-to-first-byte, token counts, turn latency, endpointing
+settings, and tool names and outcomes.
+
+No conversation content. Transcripts, LLM inputs and outputs, TTS text, system prompts, and
+tool call arguments and results are all dropped on arrival and never stored. The filter is
+an allowlist, so anything not explicitly approved is discarded by default.
+
+Roughly 30 KB per call, for a five-minute call with twenty turns.
 
 ## LangGraph / LangChain observability
 
