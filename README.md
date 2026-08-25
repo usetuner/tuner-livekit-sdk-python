@@ -23,6 +23,7 @@ Drop it into your `entrypoint` and every session — transcript, tool calls, tim
 
 - [Installation](#installation-of-the-library-into-your-livekit-project)
 - [Quickstart](#quickstart)
+- [Examples](examples/)
 - [Configuration](#configuration)
 - [Options](#options)
 - [Data captured](#data-captured)
@@ -63,6 +64,8 @@ async def entrypoint(ctx: JobContext):
 ```
 
 That's it. The plugin listens to session events and submits call data to Tuner when the session ends.
+
+For a complete, runnable agent see [`examples/voice-agent/`](examples/voice-agent/) — a restaurant receptionist with function tools, evals and a production `Dockerfile`.
 
 ## Configuration
 
