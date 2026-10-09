@@ -290,9 +290,7 @@ def to_create_call_request(
 
     resolved_sip_call_id = config.sip_call_id or state.sip_call_id
     if resolved_sip_call_id:
-        general_meta.setdefault("sip-correlation-id", resolved_sip_call_id)
         general_meta.setdefault("sip_call_id_full", resolved_sip_call_id)
-    if resolved_sip_call_id:
         payload["sip_call_id"] = resolved_sip_call_id
 
     if state.correlation_id:
