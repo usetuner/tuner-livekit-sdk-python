@@ -295,6 +295,9 @@ def to_create_call_request(
     if resolved_sip_call_id:
         payload["sip_call_id"] = resolved_sip_call_id
 
+    if state.correlation_id:
+        payload["sip_headers"] = {"X-Correlation-Id": state.correlation_id}
+
     if state.shutdown_reason:
         payload["disconnection_reason"] = state.shutdown_reason
 
