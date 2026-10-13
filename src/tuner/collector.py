@@ -44,11 +44,15 @@ class SessionState:
         sip_call_id: str | None = None,
         correlation_id: str | None = None,
     ) -> None:
-        """Mark session as SIP (phone_call) and record SIP participant identifiers."""
+        """Mark session as SIP (phone_call) and record SIP participant identifiers.
+
+        First non-empty value wins, so a later SIP participant (e.g. a transfer leg)
+        cannot replace or clear the caller's identifiers.
+        """
         self.is_sip = True
-        self.caller_phone_number = phone_number
-        self.sip_call_id = sip_call_id
-        self.correlation_id = correlation_id
+        self.caller_phone_number = self.caller_phone_number or phone_number
+        self.sip_call_id = self.sip_call_id or sip_call_id
+        self.correlation_id = self.correlation_id or correlation_id
 
     @property
     def shutdown_reason(self) -> str:

@@ -178,6 +178,13 @@ class TunerPlugin:
             if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
                 self._capture_sip_participant(participant)
 
+        # LiveKit can set SIP attributes after the participant joins; capture them
+        # then, since the caller may have left the room before the shutdown backfill.
+        @self._ctx.room.on("participant_attributes_changed")
+        def _on_attributes_changed(_changed, participant) -> None:
+            if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                self._capture_sip_participant(participant)
+
     def _capture_sip_participant(self, participant) -> None:
         attributes = dict(getattr(participant, "attributes", {}) or {})
         phone = (

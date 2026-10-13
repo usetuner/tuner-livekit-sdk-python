@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Forward Tuner's `X-Correlation-Id` SIP header (participant attribute `sip.h.x-correlation-id`) as `sip_headers`, so Tuner can link LiveKit calls to their simulation. Requires the inbound trunk's `include_headers` to be `SIP_X_HEADERS` or `SIP_ALL_HEADERS`.
+
+### Changed
+
+- SIP participant identifiers are also captured from `participant_attributes_changed`, so values LiveKit sets after the participant joins are kept even if the caller leaves before shutdown.
+- The first non-empty SIP phone number, `sip_call_id` and correlation id win; a later SIP participant no longer overwrites or clears them.
+
+### Removed
+
+- The `sip-correlation-id` key in `general_meta_data_raw`. It duplicated `sip_call_id_full`.
+
 ## [0.1.9] - 2026-07-20
 
 ### Added

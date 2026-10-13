@@ -263,122 +263,31 @@ wrapped_graph = plugin.wrap_graph(
 
 ## Simulation correlation (SIP)
 
-Tuner simulations dial into your agent through the same SIP trunk that handles production phone calls. To match a simulation run with the session your agent submits, the SDK forwards LiveKit's `sip.callIDFull` attribute as a `sip_call_id`.
+Tuner simulations dial into your agent through the same SIP trunk that handles production phone calls. Tuner sends an `X-Correlation-Id` header on the SIP INVITE. The SDK reads it from the SIP participant and forwards it as `sip_headers`, so Tuner can link the call to its simulation run. The SDK also forwards LiveKit's `sip.callIDFull` attribute as `sip_call_id`.
 
-This section covers the **SDK wiring only**. For LiveKit platform setup (SIP URI, inbound trunk, dispatch rule, Tuner SIP settings), see:
+Both are captured automatically. You don't need to read participant attributes or pass `sip_call_id` yourself.
+
+This section covers the **SDK side only**. For LiveKit platform setup (SIP URI, inbound trunk, dispatch rule, Tuner SIP settings), see:
 
 → **[docs.usetuner.ai/docs/api-and-integrations/connecting-to-livekit/simulation-setup](https://docs.usetuner.ai/docs/api-and-integrations/connecting-to-livekit/simulation-setup)**
 
 ### Requirements
 
-- `tuner-livekit-sdk >= 0.1.5` (the `sip_call_id` argument was added in 0.1.5)
+- `tuner-livekit-sdk` newer than 0.1.9 for `X-Correlation-Id` forwarding (`sip_call_id` capture needs `>= 0.1.5`).
+- Your **inbound trunk** must map SIP X-headers to participant attributes: set `include_headers` to `SIP_X_HEADERS` (or `SIP_ALL_HEADERS`). LiveKit then exposes the header as the `sip.h.x-correlation-id` attribute.
 
-### Step 1 — The `_extract_sip_call_id` helper
+> **⚠️ Trunk setting:** the default, `SIP_NO_HEADERS`, maps no headers. The call still reports, but without the correlation header, and nothing warns you. See LiveKit's [SIP participant attributes](https://docs.livekit.io/reference/telephony/sip-participant/) docs.
 
-This helper scans the LiveKit room for the SIP caller and returns their `sip.callIDFull` — the value Tuner uses to match a simulation run to the session your agent submits.
+### How capture works
 
-```python
-from livekit import rtc
+The plugin reads the SIP participant's attributes when the participant joins, again whenever LiveKit updates them (`participant_attributes_changed`), and once more at shutdown. The first non-empty value wins, so a later SIP participant (for example a transfer leg) can't replace the caller's identifiers.
 
+### Overriding `sip_call_id`
 
-def _extract_sip_call_id(ctx: JobContext) -> str | None:
-    for participant in ctx.room.remote_participants.values():
-        if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
-            continue
-        attributes = dict(getattr(participant, "attributes", {}) or {})
-        sip_call_id_full = attributes.get("sip.callIDFull")
-        if isinstance(sip_call_id_full, str) and sip_call_id_full:
-            return sip_call_id_full
-    return None
-```
-
-**How it works:**
-
-- Loops through remote participants and keeps only the SIP one (rooms can hold web clients, observers, etc.).
-- Reads `sip.callIDFull` from that participant's attributes — this is the full SIP `Call-ID` Tuner stamps on its outbound leg (not the shorter `sip.callID`).
-- Returns `None` for web calls or non-simulation SIP calls; `TunerPlugin` accepts `None` and simply skips correlation.
-
-### Step 2 — Pass it to `TunerPlugin`
-
-Once you have the helper, the wiring in `entrypoint` is three lines: connect, extract, attach.
+Pass `sip_call_id=` only to override the captured value:
 
 ```python
-async def entrypoint(ctx: JobContext):
-    session = AgentSession(...)
-
-    await ctx.connect()
-    sip_call_id = _extract_sip_call_id(ctx)
-
-    TunerPlugin(
-        session,
-        ctx,
-        sip_call_id=sip_call_id,
-        # ...other options
-    )
-
-    await session.start(...)
-```
-
-> **⚠️ Order matters:** `ctx.room.remote_participants` is empty until `await ctx.connect()` completes. If you call the helper too early it will always return `None` and you'll silently lose correlation for every simulation — no error, just missing data in Tuner. Always: build `AgentSession` → `await ctx.connect()` → extract ID → attach plugin → `await session.start(...)`.
-
-### Step 3 — Full example
-
-Putting the helper, the plugin wiring, and the usual options (cost, recording URL, metadata) together:
-
-```python
-import os
-from livekit import rtc
-from livekit.agents import JobContext, AgentSession
-from tuner import TunerPlugin
-
-
-def _extract_sip_call_id(ctx: JobContext) -> str | None:
-    for participant in ctx.room.remote_participants.values():
-        if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
-            continue
-        attributes = dict(getattr(participant, "attributes", {}) or {})
-        sip_call_id_full = attributes.get("sip.callIDFull")
-        if isinstance(sip_call_id_full, str) and sip_call_id_full:
-            return sip_call_id_full
-    return None
-
-
-def calculate_cost(usage) -> float:
-    total_dollars = (
-        usage.llm_prompt_tokens     * 0.000_003
-        + usage.llm_completion_tokens * 0.000_015
-        + usage.tts_characters_count  * 0.000_030
-    )
-    return round(total_dollars * 100, 2)  # cents — the Tuner API expects cents
-
-
-async def get_recording_url(room_name: str, job_id: str) -> str:
-    return await my_storage.get_url(job_id) or "pending"
-
-
-async def entrypoint(ctx: JobContext):
-    session = AgentSession(...)
-
-    await ctx.connect()
-    sip_call_id = _extract_sip_call_id(ctx)
-
-    TunerPlugin(
-        session,
-        ctx,
-        api_key=os.environ["TUNER_API_KEY"],
-        workspace_id=int(os.environ["TUNER_WORKSPACE_ID"]),
-        agent_id="customer-support-v3",
-        call_type="phone_call",
-        recording_url_resolver=get_recording_url,
-        cost_calculator=calculate_cost,
-        sip_call_id=sip_call_id,
-        extra_metadata={"env": "prod", "region": "us-east-1"},
-        timeout_seconds=20.0,
-        max_retries=3,
-        enabled=True,
-    )
-
-    await session.start(...)
+TunerPlugin(session, ctx, sip_call_id="my-own-call-id")
 ```
 
 ## Privacy & data handling
@@ -391,7 +300,7 @@ Use `CaptureConfig` (see [LangGraph / LangChain observability](#langgraph--langc
 
 - Python ≥ 3.10
 - `livekit-agents >= 1.4`
-- `tuner-livekit-sdk >= 0.1.5` (needed for `sip_call_id` / SIP correlation)
+- `tuner-livekit-sdk >= 0.1.5` for `sip_call_id`; newer than 0.1.9 for `X-Correlation-Id` forwarding (see [Simulation correlation (SIP)](#simulation-correlation-sip))
 - `aiohttp >= 3.9`
 - `tuner-langchain >= 0.1.1` (installed automatically as a dependency; used by `wrap_graph()` / `wrap_chain()`)
 
