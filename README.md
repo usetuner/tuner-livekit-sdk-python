@@ -368,7 +368,20 @@ response.dial(answer_on_bridge=True).sip(leg.sip_uri, username=..., password=...
 - Carriers that take headers instead of a URI use `leg.custom_headers` (`[{"name", "value"}]`) or `leg.headers`.
 - Your LiveKit inbound trunk must copy X-headers into participant attributes: `include_headers` set to `SIP_X_HEADERS`. `TunerPlugin` then reports the token automatically.
 
-Built-in providers: `twilio`. To support another carrier, register an object with a `name`, `read_correlation_id(event)` and `build_leg(livekit_uri, correlation_id)` via `tuner.telephony.register_provider`.
+Telnyx Call Control: pass the webhook JSON, then send `leg.custom_headers` in your `transfer` to LiveKit:
+
+```python
+telephony = TunerTelephony(provider="telnyx")
+leg = telephony.correlate(event, livekit_uri="sip:agent@xxxx.sip.livekit.cloud")
+await telnyx_post(f"/calls/{call_control_id}/actions/transfer", {
+    "to": leg.sip_uri, "custom_headers": leg.custom_headers,
+    "sip_auth_username": ..., "sip_auth_password": ...,
+})
+```
+
+Calling LiveKit directly, with no carrier in between? You need nothing from this section.
+
+Built-in providers: `twilio`, `telnyx`. To support another carrier, register an object with a `name`, `read_correlation_id(event)` and `build_leg(livekit_uri, correlation_id)` via `tuner.telephony.register_provider`.
 
 ## Privacy & data handling
 
