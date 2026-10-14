@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .base import CarrierProvider
+from .telnyx import TelnyxProvider
 from .twilio import TwilioProvider
 
 _PROVIDERS: dict[str, CarrierProvider] = {}
@@ -21,4 +22,5 @@ def get_provider(name: str) -> CarrierProvider:
         raise ValueError(f"Unknown provider {name!r}. Available: {available}") from None
 
 
+register_provider(TelnyxProvider())
 register_provider(TwilioProvider())
