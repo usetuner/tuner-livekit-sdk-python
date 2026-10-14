@@ -83,7 +83,7 @@ class TunerPlugin:
             call_type="phone_call",          # override auto-detection
             recording_url_resolver=my_fn,    # async (room, job_id) -> str | None
             cost_calculator=my_cost_fn,      # (UsageSummary) -> float (cost in cents)
-            sip_call_id=sip_id,              # SIP call ID (sip.callIDFull attribute)
+            sip_call_id=sip_id,              # optional override; auto-captured from sip.callIDFull
             recipient="+15551234567",        # callee phone number or SIP URL (optional)
             extra_metadata={"env": "prod"},
             max_retries=3,
@@ -194,6 +194,13 @@ class TunerPlugin:
             if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
                 self._capture_sip_participant(participant)
 
+        # LiveKit can set SIP attributes after the participant joins; capture them
+        # then, since the caller may have left the room before the shutdown backfill.
+        @self._ctx.room.on("participant_attributes_changed")
+        def _on_attributes_changed(_changed, participant) -> None:
+            if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                self._capture_sip_participant(participant)
+
     def _capture_sip_participant(self, participant) -> None:
         attributes = dict(getattr(participant, "attributes", {}) or {})
         phone = (
@@ -202,7 +209,8 @@ class TunerPlugin:
             or attributes.get("phone_number")
         )
         sip_call_id = attributes.get("sip.callIDFull")
-        self._state.record_sip_participant(phone, sip_call_id)
+        correlation_id = attributes.get("sip.h.x-correlation-id")
+        self._state.record_sip_participant(phone, sip_call_id, correlation_id)
 
     def _backfill_sip_state_from_room(self) -> None:
         from livekit import rtc

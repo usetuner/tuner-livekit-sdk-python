@@ -526,6 +526,32 @@ def test_to_create_call_request_uses_state_sip_call_id_when_config_missing():
     assert payload["sip_call_id"] == "sip-call-id-full-from-state"
 
 
+def _sip_headers_payload(correlation_id):
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
+
+    state = SessionState(
+        start_timestamp=100.0,
+        end_timestamp=110.0,
+        is_sip=True,
+        correlation_id=correlation_id,
+    )
+    config = TunerConfig(api_key="k", workspace_id=1, agent_id="a")
+    items = [user_msg("Hi", created_at=100.0)]
+    return to_create_call_request(
+        make_mock_session(), state, items, config, MockJobContext()
+    )
+
+
+def test_to_create_call_request_sip_headers_when_correlation_id():
+    payload = _sip_headers_payload("corr-123")
+    assert payload["sip_headers"] == {"X-Correlation-Id": "corr-123"}
+
+
+def test_to_create_call_request_no_sip_headers_without_correlation_id():
+    assert "sip_headers" not in _sip_headers_payload(None)
+
+
 def test_to_create_call_request_with_extra_metadata():
     """Test that extra_metadata is merged into general_meta_data_raw."""
     from tuner.collector import SessionState

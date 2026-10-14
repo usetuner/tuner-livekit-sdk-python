@@ -33,6 +33,12 @@ def test_record_sip_participant():
     assert state.caller_phone_number == "+14155552671"
 
 
+def test_record_sip_participant_correlation_id():
+    state = SessionState()
+    state.record_sip_participant("+1", "cid", "corr-1")
+    assert state.correlation_id == "corr-1"
+
+
 def test_record_sip_no_phone():
     state = SessionState()
     state.record_sip_participant(None)
