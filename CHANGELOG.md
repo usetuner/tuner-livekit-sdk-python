@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `tuner.telephony.TunerTelephony`: one call in your existing carrier webhook (`telephony.correlate(event, livekit_uri=...)`) carries Tuner's `X-Correlation-Id` onto the call into LiveKit, so simulations behind a carrier still link. Built-in providers: `twilio`, `telnyx`; others plug in via `register_provider`.
+
 ## [0.1.11] - 2026-10-14
 
 ### Added
