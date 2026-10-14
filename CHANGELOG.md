@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-10-14
+
 ### Added
 
 - Forward Tuner's `X-Correlation-Id` SIP header (participant attribute `sip.h.x-correlation-id`) as `sip_headers`, so Tuner can link LiveKit calls to their simulation. Requires the inbound trunk's `include_headers` to be `SIP_X_HEADERS` or `SIP_ALL_HEADERS`.
