@@ -29,6 +29,7 @@ Drop it into your `entrypoint` and every session — transcript, tool calls, tim
 - [Trace view (OpenTelemetry)](#trace-view-opentelemetry)
 - [LangGraph / LangChain observability](#langgraph--langchain-observability)
 - [Simulation correlation (SIP)](#simulation-correlation-sip)
+- [A carrier in front of LiveKit](#a-carrier-in-front-of-livekit)
 - [Privacy & data handling](#privacy--data-handling)
 - [Requirements](#requirements)
 - [Support](#support)
@@ -341,6 +342,33 @@ Pass `sip_call_id=` only to override the captured value:
 ```python
 TunerPlugin(session, ctx, sip_call_id="my-own-call-id")
 ```
+
+## A carrier in front of LiveKit
+
+If Tuner reaches your agent through a carrier such as Twilio (for example because your numbers live there), the carrier starts a new SIP call into LiveKit and does not copy Tuner's `X-Correlation-Id` header onto it. Without that header Tuner cannot link the call to its simulation.
+
+Add one call in the webhook where you already send the call to LiveKit. Your server keeps its routing, signature checks and call control:
+
+```python
+from tuner.telephony import TunerTelephony
+
+telephony = TunerTelephony(provider="twilio")  # once, at startup
+
+
+# in your existing Twilio voice webhook
+params = dict(await request.form())
+leg = telephony.correlate(params, livekit_uri="sip:agent@xxxx.sip.livekit.cloud")
+
+response = VoiceResponse()
+response.dial(answer_on_bridge=True).sip(leg.sip_uri, username=..., password=...)
+```
+
+- `livekit_uri` is the LiveKit SIP address your webhook already dials.
+- `leg.sip_uri` is that address with Tuner's token attached. On normal calls there is no token and it is returned unchanged, so you can call `correlate` on every call.
+- Carriers that take headers instead of a URI use `leg.custom_headers` (`[{"name", "value"}]`) or `leg.headers`.
+- Your LiveKit inbound trunk must copy X-headers into participant attributes: `include_headers` set to `SIP_X_HEADERS`. `TunerPlugin` then reports the token automatically.
+
+Built-in providers: `twilio`. To support another carrier, register an object with a `name`, `read_correlation_id(event)` and `build_leg(livekit_uri, correlation_id)` via `tuner.telephony.register_provider`.
 
 ## Privacy & data handling
 
