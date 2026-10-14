@@ -46,7 +46,7 @@ def participant(kind=SIP, attributes=None, identity="sip-caller") -> SimpleNames
 
 def make_plugin() -> tuple[TunerPlugin, FakeRoom]:
     room = FakeRoom()
-    ctx = SimpleNamespace(room=room, add_shutdown_callback=lambda _cb: None)
+    ctx = SimpleNamespace(room=room, job=SimpleNamespace(id="job_1"), add_shutdown_callback=lambda _cb: None)
     plugin = TunerPlugin(FakeEmitter(), ctx, api_key="k", workspace_id=1, agent_id="agent")
     return plugin, room
 

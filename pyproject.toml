@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tuner-livekit-sdk"
-version = "0.1.9"
+version = "0.1.10"
 description = "Automatically ingest LiveKit Agents session data into the Tuner observability API"
 readme = "README.md"
 license = "MIT"
@@ -28,6 +28,15 @@ dependencies = [
     "aiohttp>=3.9",
     "livekit-agents>=1.4",
     "tuner-langchain>=0.1.1",
+]
+
+[project.optional-dependencies]
+# Forwarding OTel spans to Tuner (ENG-1233). An extra rather than a hard dependency:
+# customers who do not want the Trace tab should not have to install the OTel SDK. The
+# code degrades to a no-op when these are absent.
+traces = [
+    "opentelemetry-sdk>=1.30.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.30.0",
 ]
 
 [project.urls]
