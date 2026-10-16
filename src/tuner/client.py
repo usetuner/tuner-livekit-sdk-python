@@ -16,9 +16,11 @@ logger = logging.getLogger("tuner.client")
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
-async def submit_call(payload: dict, config: "TunerConfig") -> None:
+async def submit_call(payload: dict, config: "TunerConfig") -> dict[str, Any] | None:
     """
     POST the call payload to the Tuner API with exponential-backoff retries.
+
+    Returns the parsed response dict, or None on failure.
 
     Retry policy:
       - Retries on HTTP 5xx and connection errors.
@@ -62,14 +64,15 @@ async def submit_call(payload: dict, config: "TunerConfig") -> None:
                         try:
                             data = await resp.json()
                         except Exception:
-                            data = {}
+                            data = None
                         logger.info(
                             "Call submitted to Tuner (call_id=%s, tuner_id=%s, is_new=%s)",
                             payload.get("call_id"),
-                            data.get("id"),
-                            data.get("is_new"),
+                            (data or {}).get("id"),
+                            (data or {}).get("is_new"),
                         )
-                        return
+                        # Carries `recording_upload` when recording_file_extension is set.
+                        return data if isinstance(data, dict) else None
 
                     if resp.status in _RETRY_STATUSES:
                         body = await resp.text()
@@ -86,7 +89,7 @@ async def submit_call(payload: dict, config: "TunerConfig") -> None:
                         payload.get("call_id"),
                         body[:500],
                     )
-                    return
+                    return None
 
             except aiohttp.ClientError as exc:
                 last_exc = exc
@@ -99,3 +102,4 @@ async def submit_call(payload: dict, config: "TunerConfig") -> None:
         payload.get("call_id"),
         last_exc,
     )
+    return None
