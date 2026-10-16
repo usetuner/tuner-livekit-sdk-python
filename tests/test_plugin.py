@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from livekit import rtc
 
@@ -111,3 +112,27 @@ def test_backfill_reads_caller_still_in_room():
 
     assert plugin._state.sip_call_id == "call-id-full"
     assert plugin._state.correlation_id == "corr-1"
+
+
+async def test_wait_for_submit_returns_submit_response():
+    plugin, _room = make_plugin()
+    plugin._session.history = SimpleNamespace(items=[])
+    response = {"recording_upload": {"url": "https://s3.example.com"}}
+
+    with (
+        patch("tuner.plugin.to_create_call_request", return_value={"call_id": "job_1"}),
+        patch("tuner.plugin.submit_call", new=AsyncMock(return_value=response)),
+    ):
+        await plugin._on_shutdown("done")
+
+    assert await plugin.wait_for_submit() == response
+
+
+async def test_wait_for_submit_unblocks_when_submit_fails():
+    plugin, _room = make_plugin()
+    plugin._session.history = SimpleNamespace(items=[])
+
+    with patch("tuner.plugin.to_create_call_request", side_effect=RuntimeError("boom")):
+        await plugin._on_shutdown("done")
+
+    assert await plugin.wait_for_submit() is None

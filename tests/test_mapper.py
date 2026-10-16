@@ -968,3 +968,35 @@ def test_eou_delay_none_when_absent():
     )
     seg = map_history_to_segments([user], session_start_ts=session_start)[0]
     assert seg["metadata"]["eou_delay"] is None
+
+
+def _recording_payload(**config_kwargs):
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
+
+    state = SessionState(start_timestamp=100.0, end_timestamp=110.0)
+    config = TunerConfig(
+        api_key="test_key", workspace_id=123, agent_id="test_agent", **config_kwargs
+    )
+    items = [user_msg("Hi", created_at=100.0)]
+    return to_create_call_request(
+        make_mock_session(), state, items, config, MockJobContext()
+    )
+
+
+def test_to_create_call_request_recording_fields_when_set():
+    payload = _recording_payload(
+        recording_file_extension="wav",
+        recording_s3_multi_channel=True,
+        recording_s3_caller_channel=0,
+    )
+    assert payload["recording_file_extension"] == "wav"
+    assert payload["recording_s3_multi_channel"] is True
+    assert payload["recording_s3_caller_channel"] == 0
+
+
+def test_to_create_call_request_recording_fields_omitted_when_unset():
+    payload = _recording_payload()
+    assert "recording_file_extension" not in payload
+    assert "recording_s3_multi_channel" not in payload
+    assert "recording_s3_caller_channel" not in payload

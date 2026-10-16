@@ -81,7 +81,7 @@ async def test_successful_201(config, payload):
     session_cm = make_mock_session(resp_cm)
 
     with patch("aiohttp.ClientSession", return_value=session_cm):
-        await submit_call(payload, config)  # Should not raise
+        assert await submit_call(payload, config) == {"id": 42, "is_new": True}
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ async def test_422_does_not_retry(config, payload):
 
     with patch("aiohttp.ClientSession", return_value=session_cm):
         session_cm.__aenter__.return_value.post = counting_post
-        await submit_call(payload, config)
+        assert await submit_call(payload, config) is None
 
     # Should only attempt once (no retries on 4xx)
     assert call_count == 1

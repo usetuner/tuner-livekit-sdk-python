@@ -134,6 +134,36 @@ async def egress_resolver(room_name: str, job_id: str) -> str:
 TunerPlugin(session, ctx, recording_url_resolver=egress_resolver)
 ```
 
+### Recording upload
+
+Instead of hosting the recording yourself, you can upload it to Tuner's storage. The
+plugin does not capture audio: you record the call and pass the audio in.
+
+1. Set `recording_file_extension` (no dot). The submit at session end then returns a
+   presigned upload target, `recording_upload`.
+2. Await `plugin.wait_for_submit()` to get that response, and pass it to
+   `upload_recording` with your audio (a path, `bytes`, or an open binary stream).
+
+```python
+from tuner import TunerPlugin, upload_recording
+
+plugin = TunerPlugin(
+    session, ctx,
+    recording_file_extension="wav",
+    recording_s3_multi_channel=True,   # optional: caller and agent on separate channels
+    recording_s3_caller_channel=0,     # optional: 0-based caller channel
+)
+
+async def upload_audio(_reason: str) -> None:
+    response = await plugin.wait_for_submit()
+    await upload_recording(response, "/tmp/call.wav", plugin.config)
+
+ctx.add_shutdown_callback(upload_audio)
+```
+
+`upload_recording` never raises. It returns `True` on success, and `False` when there is
+no target, the audio is over the target's `max_bytes`, or S3 rejects the upload.
+
 ### Cost calculation
 
 Provide a callable that receives a `UsageSummary` and returns the call cost in **cents**:
