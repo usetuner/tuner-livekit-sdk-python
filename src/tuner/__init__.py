@@ -14,7 +14,8 @@ Set env vars:
 
 from .config import TunerConfig
 from .plugin import TunerPlugin
+from .recording import upload_recording
 
 __version__ = "0.1.0"
 
-__all__ = ["TunerPlugin", "TunerConfig", "__version__"]
+__all__ = ["TunerPlugin", "TunerConfig", "upload_recording", "__version__"]
