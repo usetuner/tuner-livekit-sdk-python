@@ -86,6 +86,7 @@ class TunerPlugin:
             sip_call_id=sip_id,              # optional override; auto-captured from sip.callIDFull
             recipient="+15551234567",        # callee phone number or SIP URL (optional)
             extra_metadata={"env": "prod"},
+            recording_file_extension="wav",  # opt into a recording upload target
             max_retries=3,
             timeout_seconds=30,
         )
@@ -106,6 +107,9 @@ class TunerPlugin:
         sip_call_id: str | None = None,
         recipient: str | None = None,
         extra_metadata: dict | None = None,
+        recording_file_extension: str | None = None,
+        recording_s3_multi_channel: bool | None = None,
+        recording_s3_caller_channel: int | None = None,
         agent_version: str | int | None = None,
         enabled: bool = True,
         forward_traces: bool = True,
@@ -134,6 +138,9 @@ class TunerPlugin:
                 sip_call_id=sip_call_id,
                 recipient=recipient,
                 extra_metadata=extra_metadata,
+                recording_file_extension=recording_file_extension,
+                recording_s3_multi_channel=recording_s3_multi_channel,
+                recording_s3_caller_channel=recording_s3_caller_channel,
                 agent_version=agent_version,
                 enabled=enabled,
                 forward_traces=forward_traces,
