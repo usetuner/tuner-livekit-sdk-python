@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-10-16
+
+### Added
+
+- Recording upload, mirroring `tuner-core` 0.1.2: `recording_file_extension`, `recording_s3_multi_channel` and `recording_s3_caller_channel` options, and `upload_recording(response, audio, config)` to POST your own audio (path, bytes or stream) to the presigned S3 target.
+- `TunerPlugin.wait_for_submit()` returns the Tuner API response of the end-of-session submit; `TunerPlugin.config` exposes the resolved config.
+
+### Changed
+
+- `submit_call` returns the parsed response dict (or `None` on failure).
+
 ## [0.1.11] - 2026-10-14
 
 ### Added
