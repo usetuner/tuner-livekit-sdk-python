@@ -19,7 +19,7 @@ from .config import TunerConfig
 if TYPE_CHECKING:
     from .plugin import TunerPlugin
 
-__version__ = "0.1.0"
+__version__ = "0.1.12"
 
 __all__ = ["TunerPlugin", "TunerConfig", "__version__"]
 

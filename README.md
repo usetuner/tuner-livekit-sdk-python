@@ -326,7 +326,7 @@ This section covers the **SDK side only**. For LiveKit platform setup (SIP URI, 
 
 ### Requirements
 
-- `tuner-livekit-sdk` newer than 0.1.9 for `X-Correlation-Id` forwarding (`sip_call_id` capture needs `>= 0.1.5`).
+- `tuner-livekit-sdk` 0.1.11 or later for `X-Correlation-Id` forwarding, 0.1.12 or later for `tuner.telephony` (`sip_call_id` capture needs `>= 0.1.5`).
 - Your **inbound trunk** must map SIP X-headers to participant attributes: set `include_headers` to `SIP_X_HEADERS` (or `SIP_ALL_HEADERS`). LiveKit then exposes the header as the `sip.h.x-correlation-id` attribute.
 
 > **⚠️ Trunk setting:** the default, `SIP_NO_HEADERS`, maps no headers. The call still reports, but without the correlation header, and nothing warns you. See LiveKit's [SIP participant attributes](https://docs.livekit.io/reference/telephony/sip-participant/) docs.
@@ -415,7 +415,7 @@ Use `CaptureConfig` (see [LangGraph / LangChain observability](#langgraph--langc
 
 - Python ≥ 3.10
 - `livekit-agents >= 1.4`
-- `tuner-livekit-sdk >= 0.1.5` for `sip_call_id`; newer than 0.1.9 for `X-Correlation-Id` forwarding (see [Simulation correlation (SIP)](#simulation-correlation-sip))
+- `tuner-livekit-sdk >= 0.1.5` for `sip_call_id`; 0.1.11 or later for `X-Correlation-Id` forwarding, 0.1.12 or later for `tuner.telephony` (see [Simulation correlation (SIP)](#simulation-correlation-sip))
 - `aiohttp >= 3.9`
 - `tuner-langchain >= 0.1.1` (installed automatically as a dependency; used by `wrap_graph()` / `wrap_chain()`)
 
