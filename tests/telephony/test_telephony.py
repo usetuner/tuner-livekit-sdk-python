@@ -31,12 +31,12 @@ def forward(payload):
 
 
 def test_custom_provider_end_to_end():
-    info = extract_sip({"token": "abc123"}, provider="fake")
+    info = extract_sip({"token": "17f03659db514827908c1eacaf8b7274"}, provider="fake")
     assert info.provider == "fake"
     fwd = forward_to_sip(info, sip_uri=LIVEKIT)
-    assert fwd.correlation_id == "abc123"
-    assert fwd.headers == {"X-Correlation-Id": "abc123"}
-    assert fwd.custom_headers == [{"name": "X-Correlation-Id", "value": "abc123"}]
+    assert fwd.correlation_id == "17f03659db514827908c1eacaf8b7274"
+    assert fwd.headers == {"X-Correlation-Id": "17f03659db514827908c1eacaf8b7274"}
+    assert fwd.custom_headers == [{"name": "X-Correlation-Id", "value": "17f03659db514827908c1eacaf8b7274"}]
     assert fwd.transfer == {"to": LIVEKIT, "custom_headers": fwd.custom_headers}
 
 
@@ -63,8 +63,8 @@ def test_malformed_token_is_dropped_and_never_logged(token, caplog):
 
 def test_valid_token_is_never_logged(caplog):
     caplog.set_level(logging.DEBUG)
-    forward({"token": "secret123"})
-    assert "secret123" not in caplog.text
+    forward({"token": "17f03659db514827908c1eacaf8b7274"})
+    assert "17f03659db514827908c1eacaf8b7274" not in caplog.text
     assert "forwarded" in caplog.text
 
 
@@ -73,9 +73,9 @@ def test_provider_names_are_case_insensitive():
 
 
 def test_provider_object_and_override():
-    info = extract_sip({"token": "abc"}, provider=FakeProvider())
+    info = extract_sip({"token": "17f03659db514827908c1eacaf8b7274"}, provider=FakeProvider())
     assert forward_to_sip(SipInfo(), sip_uri=LIVEKIT, provider="twilio").sip_uri == LIVEKIT
-    assert info.correlation_id == "abc"
+    assert info.correlation_id == "17f03659db514827908c1eacaf8b7274"
 
 
 def test_forward_needs_a_provider():

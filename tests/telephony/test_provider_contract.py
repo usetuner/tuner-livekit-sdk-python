@@ -22,7 +22,7 @@ def test_empty_payload_has_no_token(name, payload):
 
 @pytest.mark.parametrize("name", sorted(registry._PROVIDERS))
 def test_token_reaches_the_leg(name):
-    info = SipInfo(sip_headers={"X-Correlation-Id": "abc123"})
+    info = SipInfo(sip_headers={"X-Correlation-Id": "17f03659db514827908c1eacaf8b7274"})
     fwd = registry.get_provider(name).forward_to_sip(info, LIVEKIT)
-    assert fwd.correlation_id == "abc123"
-    assert fwd.headers == {"X-Correlation-Id": "abc123"}
+    assert fwd.correlation_id == "17f03659db514827908c1eacaf8b7274"
+    assert fwd.headers == {"X-Correlation-Id": "17f03659db514827908c1eacaf8b7274"}
