@@ -10,7 +10,7 @@ _PROVIDERS: dict[str, CarrierProvider] = {}
 
 
 def register_provider(provider: CarrierProvider) -> None:
-    """Make ``provider`` available as ``TunerTelephony(provider=provider.name)``."""
+    """Make ``provider`` available as ``extract_sip(..., provider=provider.name)``."""
     _PROVIDERS[provider.name.lower()] = provider
 
 

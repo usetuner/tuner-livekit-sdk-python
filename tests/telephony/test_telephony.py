@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from tuner.telephony import LiveKitLeg, TunerTelephony, register_provider
+from tuner.telephony import Forward, SipInfo, extract_sip, forward_to_sip, register_provider
 from tuner.telephony.providers import registry
 
 LIVEKIT = "sip:agent@xxxx.sip.livekit.cloud"
@@ -13,11 +13,11 @@ class FakeProvider:
 
     name = "fake"
 
-    def read_correlation_id(self, event):
-        return event.get("token")
+    def extract(self, payload):
+        return SipInfo(sip_headers={"X-Correlation-Id": payload.get("token") or ""})
 
-    def build_leg(self, livekit_uri, correlation_id):
-        return LiveKitLeg(sip_uri=livekit_uri, correlation_id=correlation_id)
+    def forward_to_sip(self, info, sip_uri):
+        return Forward(sip_uri=sip_uri, correlation_id=info.correlation_id or None)
 
 
 @pytest.fixture(autouse=True)
@@ -26,39 +26,63 @@ def fake_provider(monkeypatch):
     register_provider(FakeProvider())
 
 
-def test_correlate_returns_token_on_the_leg():
-    leg = TunerTelephony(provider="fake").correlate({"token": "abc123"}, livekit_uri=LIVEKIT)
-    assert leg.correlation_id == "abc123"
-    assert leg.headers == {"X-Correlation-Id": "abc123"}
-    assert leg.custom_headers == [{"name": "X-Correlation-Id", "value": "abc123"}]
+def forward(payload):
+    return forward_to_sip(extract_sip(payload, provider="fake"), sip_uri=LIVEKIT)
+
+
+def test_custom_provider_end_to_end():
+    info = extract_sip({"token": "abc123"}, provider="fake")
+    assert info.provider == "fake"
+    fwd = forward_to_sip(info, sip_uri=LIVEKIT)
+    assert fwd.correlation_id == "abc123"
+    assert fwd.headers == {"X-Correlation-Id": "abc123"}
+    assert fwd.custom_headers == [{"name": "X-Correlation-Id", "value": "abc123"}]
+    assert fwd.transfer == {"to": LIVEKIT, "custom_headers": fwd.custom_headers}
 
 
 def test_no_token_leaves_the_leg_untouched():
-    leg = TunerTelephony(provider="fake").correlate({}, livekit_uri=LIVEKIT)
-    assert leg == LiveKitLeg(sip_uri=LIVEKIT)
-    assert leg.headers == {}
-    assert leg.custom_headers == []
+    fwd = forward({})
+    assert fwd == Forward(sip_uri=LIVEKIT)
+    assert fwd.headers == {}
+    assert fwd.custom_headers == []
+    assert fwd.transfer == {"to": LIVEKIT}
+
+
+def test_twiml_escapes_the_uri():
+    fwd = Forward(sip_uri="sip:a@b?X-A=1&X-B=2")
+    assert fwd.twiml == "<Response><Dial><Sip>sip:a@b?X-A=1&amp;X-B=2</Sip></Dial></Response>"
 
 
 @pytest.mark.parametrize("token", ["has space", "a" * 129, "x&X-Other=1"])
 def test_malformed_token_is_dropped_and_never_logged(token, caplog):
     caplog.set_level(logging.DEBUG)
-    leg = TunerTelephony(provider="fake").correlate({"token": token}, livekit_uri=LIVEKIT)
-    assert leg.correlation_id is None
+    assert forward({"token": token}).correlation_id is None
     assert token not in caplog.text
+    assert "malformed" in caplog.text
 
 
 def test_valid_token_is_never_logged(caplog):
     caplog.set_level(logging.DEBUG)
-    TunerTelephony(provider="fake").correlate({"token": "secret123"}, livekit_uri=LIVEKIT)
+    forward({"token": "secret123"})
     assert "secret123" not in caplog.text
     assert "forwarded" in caplog.text
 
 
 def test_provider_names_are_case_insensitive():
-    assert TunerTelephony(provider="FAKE").provider.name == "fake"
+    assert extract_sip({}, provider="FAKE").provider == "fake"
+
+
+def test_provider_object_and_override():
+    info = extract_sip({"token": "abc"}, provider=FakeProvider())
+    assert forward_to_sip(SipInfo(), sip_uri=LIVEKIT, provider="twilio").sip_uri == LIVEKIT
+    assert info.correlation_id == "abc"
+
+
+def test_forward_needs_a_provider():
+    with pytest.raises(ValueError, match="provider"):
+        forward_to_sip(SipInfo(), sip_uri=LIVEKIT)
 
 
 def test_unknown_provider_lists_available_ones():
     with pytest.raises(ValueError, match="Unknown provider 'nope'. Available: .*fake"):
-        TunerTelephony(provider="nope")
+        extract_sip({}, provider="nope")

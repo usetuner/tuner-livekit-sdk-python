@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from ..leg import LiveKitLeg
+from ..info import Forward, SipInfo
 
 
 class CarrierProvider(Protocol):
-    """Knows where a carrier's webhook carries custom SIP headers, and how its
-    dial/transfer to LiveKit accepts them."""
+    """Knows where a carrier's webhook carries SIP data, and how its dial/transfer to
+    LiveKit carries Tuner's correlation header."""
 
     name: str
 
-    def read_correlation_id(self, event: Any) -> str | None:
-        """Return the raw ``X-Correlation-Id`` from the carrier's webhook event, if any."""
+    def extract(self, payload: Any) -> SipInfo:
+        """Read SIP data from the carrier's webhook payload."""
 
-    def build_leg(self, livekit_uri: str, correlation_id: str | None) -> LiveKitLeg:
-        """Return the LiveKit leg carrying ``correlation_id`` the way this carrier needs."""
+    def forward_to_sip(self, info: SipInfo, sip_uri: str) -> Forward:
+        """The leg to ``sip_uri`` carrying ``info.correlation_id`` the way this carrier needs."""

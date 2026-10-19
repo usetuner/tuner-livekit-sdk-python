@@ -7,28 +7,35 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..correlation import CORRELATION_HEADER
-from ..leg import LiveKitLeg
+from ..info import Forward, SipInfo
 from ..sip_uri import with_header
 
-_PARAM = f"sipheader_{CORRELATION_HEADER}".lower()
+_PREFIX = "sipheader_"
 
 
 class TwilioProvider:
     name = "twilio"
 
-    def read_correlation_id(self, event: Any) -> str | None:
-        """``event``: the webhook's form params (any mapping, e.g. ``await request.form()``)."""
-        if not isinstance(event, Mapping):
-            return None
-        for key, value in event.items():
-            if isinstance(key, str) and key.lower() == _PARAM and value:
-                return str(value)
-        return None
-
-    def build_leg(self, livekit_uri: str, correlation_id: str | None) -> LiveKitLeg:
-        sip_uri = (
-            with_header(livekit_uri, CORRELATION_HEADER, correlation_id)
-            if correlation_id
-            else livekit_uri
+    def extract(self, payload: Any) -> SipInfo:
+        """``payload``: the webhook's form params (any mapping, e.g. ``await request.form()``)."""
+        if not isinstance(payload, Mapping):
+            return SipInfo()
+        form = {str(k): str(v) for k, v in payload.items() if isinstance(k, str) and v}
+        headers: dict[str, str] = {}
+        for key, value in form.items():
+            if key.lower().startswith(_PREFIX) and len(key) > len(_PREFIX):
+                headers[key] = value
+                headers.setdefault(key[len(_PREFIX) :], value)
+        carrier = form.get("CallSid")
+        outbound = form.get("Direction", "").startswith("outbound")
+        return SipInfo(
+            sip_call_id=form.get("SipCallId") or carrier,
+            sip_headers=headers,
+            carrier_call_id=carrier,
+            recipient=form.get("To") if outbound else None,
         )
-        return LiveKitLeg(sip_uri=sip_uri, correlation_id=correlation_id)
+
+    def forward_to_sip(self, info: SipInfo, sip_uri: str) -> Forward:
+        token = info.correlation_id or None
+        uri = with_header(sip_uri, CORRELATION_HEADER, token) if token else sip_uri
+        return Forward(sip_uri=uri, correlation_id=token)
