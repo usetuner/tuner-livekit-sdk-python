@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from xml.sax.saxutils import escape
 
 from .correlation import CORRELATION_HEADER, valid_correlation_id
+
+if TYPE_CHECKING:
+    from .providers.base import CarrierProvider
 
 
 @dataclass(frozen=True)
@@ -20,6 +23,8 @@ class SipInfo:
     provider: str | None = field(default=None, compare=False)
     # Outbound only: the number or SIP URI the call dialed.
     recipient: str | None = None
+    # The provider object extract_sip used, so an unregistered one still forwards.
+    provider_impl: CarrierProvider | None = field(default=None, repr=False, compare=False)
 
     @property
     def is_fallback(self) -> bool:

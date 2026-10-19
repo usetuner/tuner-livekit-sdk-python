@@ -17,9 +17,7 @@ def extract_sip(payload: Any, *, provider: str | CarrierProvider) -> SipInfo:
     """Read SIP data from what the carrier sent your webhook."""
     impl = get_provider(provider) if isinstance(provider, str) else provider
     info = impl.extract(payload)
-    if info.provider is None:
-        info = dataclasses.replace(info, provider=impl.name)
-    return info
+    return dataclasses.replace(info, provider=info.provider or impl.name, provider_impl=impl)
 
 
 def forward_to_sip(
@@ -29,7 +27,7 @@ def forward_to_sip(
 
     Calls without a token (normal production calls) get ``sip_uri`` unchanged.
     """
-    chosen = provider or info.provider
+    chosen = provider or info.provider_impl or info.provider
     if chosen is None:
         raise ValueError("pass provider= or a SipInfo from extract_sip")
     impl = get_provider(chosen) if isinstance(chosen, str) else chosen

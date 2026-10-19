@@ -86,3 +86,12 @@ def test_forward_needs_a_provider():
 def test_unknown_provider_lists_available_ones():
     with pytest.raises(ValueError, match="Unknown provider 'nope'. Available: .*fake"):
         extract_sip({}, provider="nope")
+
+
+def test_unregistered_provider_object_forwards():
+    class Custom(FakeProvider):
+        name = "custom-unregistered"
+
+    info = extract_sip({"token": "17f03659db514827908c1eacaf8b7274"}, provider=Custom())
+    assert info.provider == "custom-unregistered"
+    assert forward_to_sip(info, sip_uri=LIVEKIT).correlation_id == info.correlation_id
