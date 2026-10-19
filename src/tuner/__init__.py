@@ -12,9 +12,22 @@ Set env vars:
     TUNER_API_KEY, TUNER_WORKSPACE_ID, TUNER_AGENT_ID
 """
 
+from typing import TYPE_CHECKING, Any
+
 from .config import TunerConfig
-from .plugin import TunerPlugin
+
+if TYPE_CHECKING:
+    from .plugin import TunerPlugin
 
 __version__ = "0.1.0"
 
 __all__ = ["TunerPlugin", "TunerConfig", "__version__"]
+
+
+def __getattr__(name: str) -> Any:
+    # Lazy so ``tuner.telephony`` (webhook servers) does not load livekit.agents.
+    if name == "TunerPlugin":
+        from .plugin import TunerPlugin
+
+        return TunerPlugin
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
