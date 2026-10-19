@@ -347,41 +347,63 @@ TunerPlugin(session, ctx, sip_call_id="my-own-call-id")
 
 If Tuner reaches your agent through a carrier such as Twilio (for example because your numbers live there), the carrier starts a new SIP call into LiveKit and does not copy Tuner's `X-Correlation-Id` header onto it. Without that header Tuner cannot link the call to its simulation.
 
-Add one call in the webhook where you already send the call to LiveKit. Your server keeps its routing, signature checks and call control:
+Add two calls in the webhook where you already send the call to LiveKit. Your server keeps its routing, signature checks and call control:
+
+| Step | API |
+|---|---|
+| Read | `extract_sip(payload, *, provider) -> SipInfo(sip_call_id, sip_headers, carrier_call_id, recipient)` |
+| Forward | `forward_to_sip(info, *, sip_uri) -> Forward` (`.twiml` / `.sip_uri` for Twilio, `.transfer` / `.custom_headers` for Telnyx) |
+| Attach (optional) | `plugin.attach_sip(info=None, *, sip_call_id=None, sip_headers=None, recipient=None)` |
+| Add a carrier | `register_provider(provider)` |
 
 ```python
-from tuner.telephony import TunerTelephony
-
-telephony = TunerTelephony(provider="twilio")  # once, at startup
-
+from tuner.telephony import extract_sip, forward_to_sip
 
 # in your existing Twilio voice webhook
-params = dict(await request.form())
-leg = telephony.correlate(params, livekit_uri="sip:agent@xxxx.sip.livekit.cloud")
+info = extract_sip(await request.form(), provider="twilio")
+fwd = forward_to_sip(info, sip_uri="sip:agent@xxxx.sip.livekit.cloud")
 
 response = VoiceResponse()
-response.dial(answer_on_bridge=True).sip(leg.sip_uri, username=..., password=...)
+response.dial(answer_on_bridge=True).sip(fwd.sip_uri, username=..., password=...)
+# or, with no other options: return fwd.twiml
 ```
 
-- `livekit_uri` is the LiveKit SIP address your webhook already dials.
-- `leg.sip_uri` is that address with Tuner's token attached. On normal calls there is no token and it is returned unchanged, so you can call `correlate` on every call.
-- Carriers that take headers instead of a URI use `leg.custom_headers` (`[{"name", "value"}]`) or `leg.headers`.
+- `sip_uri` is the LiveKit SIP address your webhook already dials.
+- `fwd.sip_uri` is that address with Tuner's token attached (Twilio sends URI headers as SIP headers). On normal calls there is no token and it is returned unchanged, so you can call it on every call.
 - Your LiveKit inbound trunk must copy X-headers into participant attributes: `include_headers` set to `SIP_X_HEADERS`. `TunerPlugin` then reports the token automatically.
 
-Telnyx Call Control: pass the webhook JSON, then send `leg.custom_headers` in your `transfer` to LiveKit:
+Telnyx Call Control: pass the webhook JSON, then send `fwd.transfer` (`to` + `custom_headers`) to LiveKit:
 
 ```python
-telephony = TunerTelephony(provider="telnyx")
-leg = telephony.correlate(event, livekit_uri="sip:agent@xxxx.sip.livekit.cloud")
+info = extract_sip(event, provider="telnyx")
+fwd = forward_to_sip(info, sip_uri="sip:agent@xxxx.sip.livekit.cloud")
 await telnyx_post(f"/calls/{call_control_id}/actions/transfer", {
-    "to": leg.sip_uri, "custom_headers": leg.custom_headers,
-    "sip_auth_username": ..., "sip_auth_password": ...,
+    **fwd.transfer, "sip_auth_username": ..., "sip_auth_password": ...,
 })
 ```
 
+Outbound: Tuner links on the dialed `recipient`. Pass it to the worker (for example in the dispatch metadata) and report it with `TunerPlugin(..., recipient=...)` or `plugin.attach_sip(recipient=...)`. `extract_sip` also reads it from an outbound carrier webhook (`info.recipient`).
+
+`plugin.attach_sip(...)` overrides what the plugin captured from the SIP participant; explicit arguments win over `info`, a carrier call ID is ignored and a malformed `X-Correlation-Id` is dropped.
+
 Calling LiveKit directly, with no carrier in between? You need nothing from this section.
 
-Built-in providers: `twilio`, `telnyx`. To support another carrier, register an object with a `name`, `read_correlation_id(event)` and `build_leg(livekit_uri, correlation_id)` via `tuner.telephony.register_provider`.
+Built-in providers: `twilio`, `telnyx`. To support another carrier, register a class with `name`, `extract(payload) -> SipInfo` and `forward_to_sip(info, sip_uri) -> Forward`:
+
+```python
+from tuner.telephony import Forward, SipInfo, register_provider
+
+class AcmeProvider:
+    name = "acme"
+
+    def extract(self, payload) -> SipInfo:
+        return SipInfo(sip_headers={"X-Correlation-Id": payload.get("correlation_id", "")})
+
+    def forward_to_sip(self, info: SipInfo, sip_uri: str) -> Forward:
+        return Forward(sip_uri=sip_uri, correlation_id=info.correlation_id or None)
+
+register_provider(AcmeProvider())
+```
 
 ## Privacy & data handling
 
