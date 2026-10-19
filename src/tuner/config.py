@@ -33,6 +33,12 @@ class TunerConfig:
     forward_traces: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
+    # Added last so positional construction keeps working.
+    # Extension without a dot (e.g. "wav"); opts into a presigned recording upload target.
+    recording_file_extension: str | None = None
+    # Layout of the uploaded audio: separate caller/agent channels, and the caller's index.
+    recording_s3_multi_channel: bool | None = None
+    recording_s3_caller_channel: int | None = None
 
     @classmethod
     def from_env(
@@ -53,6 +59,9 @@ class TunerConfig:
         forward_traces: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
+        recording_file_extension: str | None = None,
+        recording_s3_multi_channel: bool | None = None,
+        recording_s3_caller_channel: int | None = None,
     ) -> "TunerConfig":
         """
         Build config from keyword arguments, falling back to environment variables.
@@ -121,6 +130,9 @@ class TunerConfig:
             sip_call_id=sip_call_id,
             agent_version=resolved_agent_version,
             recipient=recipient,
+            recording_file_extension=recording_file_extension,
+            recording_s3_multi_channel=recording_s3_multi_channel,
+            recording_s3_caller_channel=recording_s3_caller_channel,
             enabled=enabled,
             forward_traces=forward_traces,
             timeout_seconds=timeout_seconds,

@@ -304,4 +304,13 @@ def to_create_call_request(
     if config.agent_version is not None:
         payload["agent_version"] = config.agent_version
 
+    for field in (
+        "recording_file_extension",
+        "recording_s3_multi_channel",
+        "recording_s3_caller_channel",
+    ):
+        value = getattr(config, field)
+        if value is not None:
+            payload[field] = value
+
     return payload

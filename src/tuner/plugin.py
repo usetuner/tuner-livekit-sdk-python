@@ -86,6 +86,7 @@ class TunerPlugin:
             sip_call_id=sip_id,              # optional override; auto-captured from sip.callIDFull
             recipient="+15551234567",        # callee phone number or SIP URL (optional)
             extra_metadata={"env": "prod"},
+            recording_file_extension="wav",  # opt into a recording upload target
             max_retries=3,
             timeout_seconds=30,
         )
@@ -106,6 +107,9 @@ class TunerPlugin:
         sip_call_id: str | None = None,
         recipient: str | None = None,
         extra_metadata: dict | None = None,
+        recording_file_extension: str | None = None,
+        recording_s3_multi_channel: bool | None = None,
+        recording_s3_caller_channel: int | None = None,
         agent_version: str | int | None = None,
         enabled: bool = True,
         forward_traces: bool = True,
@@ -117,6 +121,8 @@ class TunerPlugin:
         self._state = SessionState()
         self._config: TunerConfig | None = None
         self._lg_accumulator: TunerAccumulator | None = None
+        self._submit_response: dict[str, Any] | None = None
+        self._submitted = asyncio.Event()
 
         if not enabled:
             logger.debug("TunerPlugin is disabled; no data will be sent to Tuner")
@@ -134,6 +140,9 @@ class TunerPlugin:
                 sip_call_id=sip_call_id,
                 recipient=recipient,
                 extra_metadata=extra_metadata,
+                recording_file_extension=recording_file_extension,
+                recording_s3_multi_channel=recording_s3_multi_channel,
+                recording_s3_caller_channel=recording_s3_caller_channel,
                 agent_version=agent_version,
                 enabled=enabled,
                 forward_traces=forward_traces,
@@ -279,10 +288,31 @@ class TunerPlugin:
             self._lg_accumulator = TunerAccumulator(capture=capture)
         return _lg_wrap_chain(chain, accumulator=self._lg_accumulator)
 
+    @property
+    def config(self) -> TunerConfig | None:
+        return self._config
+
+    async def wait_for_submit(self) -> dict[str, Any] | None:
+        """Wait for the end-of-session submit and return the Tuner API response.
+
+        Returns None if the plugin is disabled or the submit failed. With
+        ``recording_file_extension`` set, pass the result to ``upload_recording``.
+        """
+        if self._config is None:
+            return None
+        await self._submitted.wait()
+        return self._submit_response
+
     def _register_shutdown_hook(self) -> None:
         self._ctx.add_shutdown_callback(self._on_shutdown)
 
     async def _on_shutdown(self, reason: str) -> None:
+        try:
+            await self._submit(reason)
+        finally:
+            self._submitted.set()
+
+    async def _submit(self, reason: str) -> None:
         if self._config is None:
             return
 
@@ -343,7 +373,7 @@ class TunerPlugin:
             + backoff_budget
         )
         try:
-            await asyncio.wait_for(
+            self._submit_response = await asyncio.wait_for(
                 submit_call(payload, self._config),
                 timeout=total_timeout,
             )
