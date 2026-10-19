@@ -26,6 +26,8 @@ class SessionState:
     caller_phone_number: str | None = None
     sip_call_id: str | None = None
     correlation_id: str | None = None
+    # Set by TunerPlugin.attach_sip; wins over what the SIP participant carried.
+    sip_headers: dict[str, str] = field(default_factory=dict)
     close_error: Optional[Exception] = None
     _shutdown_reason: str = field(default="", init=False, repr=False)
     _usage_collector: UsageCollector = field(default_factory=UsageCollector, repr=False)

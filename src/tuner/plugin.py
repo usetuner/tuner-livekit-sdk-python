@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -12,6 +13,8 @@ from .mapper import to_create_call_request
 
 if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
+
+    from .telephony import SipInfo
     from livekit.agents.metrics import UsageSummary
     from tuner_langchain import CaptureConfig
 
@@ -200,6 +203,50 @@ class TunerPlugin:
         def _on_attributes_changed(_changed, participant) -> None:
             if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
                 self._capture_sip_participant(participant)
+
+    def attach_sip(
+        self,
+        info: "SipInfo | None" = None,
+        *,
+        sip_call_id: str | None = None,
+        sip_headers: dict[str, str] | None = None,
+        recipient: str | None = None,
+    ) -> None:
+        """Override the SIP data the plugin captures from the SIP participant.
+
+        Not needed for calls that reach LiveKit over SIP with ``X-Correlation-Id``:
+        the plugin reads it. Use it when your agent knows better, e.g. an outbound
+        call's dialed ``recipient``. Explicit arguments win over ``info``; a carrier
+        call ID in ``info`` is ignored. A malformed ``X-Correlation-Id`` is dropped.
+        """
+        from .telephony.correlation import valid_correlation_id
+
+        if self._config is None:
+            return
+        headers = dict(sip_headers or {})
+        known = {k.lower() for k in headers}
+        for name, value in (info.sip_headers if info else {}).items():
+            if name.lower() not in known:
+                headers[name] = value
+                known.add(name.lower())
+        for name, value in list(headers.items()):
+            if name.lower() == "x-correlation-id":
+                value = valid_correlation_id(value)
+            if value:
+                self._state.sip_headers[name] = value
+            else:
+                headers.pop(name)
+        updates: dict[str, Any] = {}
+        call_id = sip_call_id or (
+            info.sip_call_id if info is not None and not info.is_fallback else None
+        )
+        if call_id:
+            updates["sip_call_id"] = call_id
+        recipient = recipient or (info.recipient if info is not None else None)
+        if recipient:
+            updates["recipient"] = recipient
+        if updates:
+            self._config = dataclasses.replace(self._config, **updates)
 
     def _capture_sip_participant(self, participant) -> None:
         attributes = dict(getattr(participant, "attributes", {}) or {})

@@ -111,3 +111,36 @@ def test_backfill_reads_caller_still_in_room():
 
     assert plugin._state.sip_call_id == "call-id-full"
     assert plugin._state.correlation_id == "corr-1"
+
+
+def test_attach_sip_overrides_captured_values():
+    from tuner.telephony import SipInfo
+
+    plugin, room = make_plugin()
+    room.emit("participant_connected", participant(attributes=SIP_ATTRIBUTES))
+    plugin.attach_sip(
+        SipInfo(
+            sip_call_id="sip@host",
+            sip_headers={"X-Correlation-Id": "tok123", "X-Other": "o"},
+            recipient="sip:t@tuner",
+        )
+    )
+    assert plugin._config.sip_call_id == "sip@host"
+    assert plugin._config.recipient == "sip:t@tuner"
+    assert plugin._state.sip_headers == {"X-Correlation-Id": "tok123", "X-Other": "o"}
+
+    plugin.attach_sip(recipient="explicit", sip_call_id="explicit@host")
+    assert plugin._config.recipient == "explicit"
+    assert plugin._config.sip_call_id == "explicit@host"
+
+
+def test_attach_sip_ignores_carrier_ids_and_malformed_tokens():
+    from tuner.telephony import SipInfo
+
+    plugin, _ = make_plugin()
+    plugin.attach_sip(
+        SipInfo(sip_call_id="CA1", carrier_call_id="CA1"),
+        sip_headers={"X-Correlation-Id": "bad token!"},
+    )
+    assert plugin._config.sip_call_id is None
+    assert plugin._state.sip_headers == {}

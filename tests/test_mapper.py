@@ -968,3 +968,16 @@ def test_eou_delay_none_when_absent():
     )
     seg = map_history_to_segments([user], session_start_ts=session_start)[0]
     assert seg["metadata"]["eou_delay"] is None
+
+
+def test_attached_sip_headers_win_over_the_participant_header():
+    from tuner.collector import SessionState
+    from tuner.config import TunerConfig
+
+    state = SessionState(start_timestamp=100.0, end_timestamp=110.0, correlation_id="from-sip")
+    state.sip_headers = {"x-correlation-id": "attached", "X-Other": "o"}
+    config = TunerConfig(api_key="k", workspace_id=1, agent_id="a")
+    payload = to_create_call_request(
+        make_mock_session(), state, [user_msg("Hi", created_at=100.0)], config, MockJobContext()
+    )
+    assert payload["sip_headers"] == {"x-correlation-id": "attached", "X-Other": "o"}
