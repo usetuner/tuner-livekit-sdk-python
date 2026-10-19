@@ -217,18 +217,17 @@ class TunerPlugin:
         Not needed for calls that reach LiveKit over SIP with ``X-Correlation-Id``:
         the plugin reads it. Use it when your agent knows better, e.g. an outbound
         call's dialed ``recipient``. Explicit arguments win over ``info``; a carrier
-        call ID in ``info`` is ignored. A malformed ``X-Correlation-Id`` is dropped.
+        call ID and headers other than ``X-Correlation-Id`` in ``info`` are ignored.
+        A malformed ``X-Correlation-Id`` is dropped.
         """
         from .telephony.correlation import valid_correlation_id
 
         if self._config is None:
             return
         headers = dict(sip_headers or {})
-        known = {k.lower() for k in headers}
-        for name, value in (info.sip_headers if info else {}).items():
-            if name.lower() not in known:
-                headers[name] = value
-                known.add(name.lower())
+        # Only the correlation header from ``info``; other carrier headers can hold caller PII.
+        if info is not None and not any(k.lower() == "x-correlation-id" for k in headers):
+            headers["X-Correlation-Id"] = info.raw_correlation_id or ""
         for name, value in list(headers.items()):
             if name.lower() == "x-correlation-id":
                 value = valid_correlation_id(value)

@@ -127,7 +127,7 @@ def test_attach_sip_overrides_captured_values():
     )
     assert plugin._config.sip_call_id == "sip@host"
     assert plugin._config.recipient == "sip:t@tuner"
-    assert plugin._state.sip_headers == {"X-Correlation-Id": "17f03659db514827908c1eacaf8b7274", "X-Other": "o"}
+    assert plugin._state.sip_headers == {"X-Correlation-Id": "17f03659db514827908c1eacaf8b7274"}
 
     plugin.attach_sip(recipient="explicit", sip_call_id="explicit@host")
     assert plugin._config.recipient == "explicit"
@@ -144,3 +144,16 @@ def test_attach_sip_ignores_carrier_ids_and_malformed_tokens():
     )
     assert plugin._config.sip_call_id is None
     assert plugin._state.sip_headers == {}
+
+
+def test_attach_sip_copies_only_the_correlation_header_from_info():
+    from tuner.telephony import extract_sip
+
+    plugin, _ = make_plugin()
+    token = "17f03659db514827908c1eacaf8b7274"
+    info = extract_sip(
+        {"CallSid": "CA1", "SipHeader_X-Correlation-Id": token, "SipHeader_X-Caller": "+15551234567"},
+        provider="twilio",
+    )
+    plugin.attach_sip(info)
+    assert plugin._state.sip_headers == {"X-Correlation-Id": token}
