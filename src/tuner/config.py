@@ -26,11 +26,6 @@ class TunerConfig:
     sip_call_id: str | None = None
     agent_version: str | None = None
     recipient: str | None = None  # callee phone number or SIP URL; not auto-collected
-    # Extension without a dot (e.g. "wav"); opts into a presigned recording upload target.
-    recording_file_extension: str | None = None
-    # Layout of the uploaded audio: separate caller/agent channels, and the caller's index.
-    recording_s3_multi_channel: bool | None = None
-    recording_s3_caller_channel: int | None = None
     enabled: bool = True
     # Forward the session's OTel spans to Tuner so the call's Trace tab is populated.
     # No-ops unless the optional OTel packages are installed: pip install
@@ -38,6 +33,12 @@ class TunerConfig:
     forward_traces: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
+    # Added last so positional construction keeps working.
+    # Extension without a dot (e.g. "wav"); opts into a presigned recording upload target.
+    recording_file_extension: str | None = None
+    # Layout of the uploaded audio: separate caller/agent channels, and the caller's index.
+    recording_s3_multi_channel: bool | None = None
+    recording_s3_caller_channel: int | None = None
 
     @classmethod
     def from_env(
@@ -54,13 +55,13 @@ class TunerConfig:
         sip_call_id: str | None = None,
         agent_version: str | int | None = None,
         recipient: str | None = None,
-        recording_file_extension: str | None = None,
-        recording_s3_multi_channel: bool | None = None,
-        recording_s3_caller_channel: int | None = None,
         enabled: bool = True,
         forward_traces: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
+        recording_file_extension: str | None = None,
+        recording_s3_multi_channel: bool | None = None,
+        recording_s3_caller_channel: int | None = None,
     ) -> "TunerConfig":
         """
         Build config from keyword arguments, falling back to environment variables.

@@ -89,7 +89,9 @@ async def test_fields_come_before_file(config, s3) -> None:
 async def test_uploads_from_stream_with_explicit_filename(config, s3) -> None:
     stream = io.BytesIO(b"RIFFfake")
 
-    result = await upload_recording(_response(s3), stream, config, filename="stream.wav")
+    result = await upload_recording(
+        _response(s3), stream, config, filename="stream.wav"
+    )
 
     assert result is True
     assert s3.sent_filename() == "stream.wav"
@@ -161,3 +163,18 @@ async def test_missing_path_is_reported(config, s3, tmp_path: Path) -> None:
 async def test_response_without_target_is_skipped(config) -> None:
     assert await upload_recording({}, b"RIFFfake", config) is False
     assert await upload_recording(None, b"RIFFfake", config) is False
+
+
+def test_recording_options_are_last_so_positional_args_keep_working():
+    import dataclasses
+    import inspect
+
+    from tuner import TunerConfig
+
+    new = [
+        "recording_file_extension",
+        "recording_s3_multi_channel",
+        "recording_s3_caller_channel",
+    ]
+    assert [f.name for f in dataclasses.fields(TunerConfig)][-3:] == new
+    assert list(inspect.signature(TunerConfig.from_env).parameters)[-3:] == new
