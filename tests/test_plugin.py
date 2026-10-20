@@ -14,7 +14,7 @@ STANDARD = rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD
 SIP_ATTRIBUTES = {
     "sip.phoneNumber": "+14155552671",
     "sip.callIDFull": "call-id-full",
-    "sip.h.x-correlation-id": "corr-1",
+    "sip.h.x-correlation-id": "17f03659db514827908c1eacaf8b7274",
 }
 
 
@@ -59,7 +59,7 @@ def test_captures_sip_attributes_present_at_join():
     assert state.is_sip is True
     assert state.caller_phone_number == "+14155552671"
     assert state.sip_call_id == "call-id-full"
-    assert state.correlation_id == "corr-1"
+    assert state.correlation_id == "17f03659db514827908c1eacaf8b7274"
 
 
 def test_captures_attributes_set_after_join_when_caller_leaves_before_shutdown():
@@ -74,7 +74,7 @@ def test_captures_attributes_set_after_join_when_caller_leaves_before_shutdown()
     plugin._backfill_sip_state_from_room()
 
     assert plugin._state.sip_call_id == "call-id-full"
-    assert plugin._state.correlation_id == "corr-1"
+    assert plugin._state.correlation_id == "17f03659db514827908c1eacaf8b7274"
 
 
 def test_second_sip_participant_does_not_replace_caller_identifiers():
@@ -91,7 +91,7 @@ def test_second_sip_participant_does_not_replace_caller_identifiers():
     state = plugin._state
     assert state.caller_phone_number == "+14155552671"
     assert state.sip_call_id == "call-id-full"
-    assert state.correlation_id == "corr-1"
+    assert state.correlation_id == "17f03659db514827908c1eacaf8b7274"
 
 
 def test_ignores_attribute_changes_from_non_sip_participants():
@@ -110,4 +110,50 @@ def test_backfill_reads_caller_still_in_room():
     plugin._backfill_sip_state_from_room()
 
     assert plugin._state.sip_call_id == "call-id-full"
-    assert plugin._state.correlation_id == "corr-1"
+    assert plugin._state.correlation_id == "17f03659db514827908c1eacaf8b7274"
+
+
+def test_attach_sip_overrides_captured_values():
+    from tuner.telephony import SipInfo
+
+    plugin, room = make_plugin()
+    room.emit("participant_connected", participant(attributes=SIP_ATTRIBUTES))
+    plugin.attach_sip(
+        SipInfo(
+            sip_call_id="sip@host",
+            sip_headers={"X-Correlation-Id": "17f03659db514827908c1eacaf8b7274", "X-Other": "o"},
+            recipient="sip:t@tuner",
+        )
+    )
+    assert plugin._config.sip_call_id == "sip@host"
+    assert plugin._config.recipient == "sip:t@tuner"
+    assert plugin._state.sip_headers == {"X-Correlation-Id": "17f03659db514827908c1eacaf8b7274"}
+
+    plugin.attach_sip(recipient="explicit", sip_call_id="explicit@host")
+    assert plugin._config.recipient == "explicit"
+    assert plugin._config.sip_call_id == "explicit@host"
+
+
+def test_attach_sip_ignores_carrier_ids_and_malformed_tokens():
+    from tuner.telephony import SipInfo
+
+    plugin, _ = make_plugin()
+    plugin.attach_sip(
+        SipInfo(sip_call_id="CA1", carrier_call_id="CA1"),
+        sip_headers={"X-Correlation-Id": "bad token!"},
+    )
+    assert plugin._config.sip_call_id is None
+    assert plugin._state.sip_headers == {}
+
+
+def test_attach_sip_copies_only_the_correlation_header_from_info():
+    from tuner.telephony import extract_sip
+
+    plugin, _ = make_plugin()
+    token = "17f03659db514827908c1eacaf8b7274"
+    info = extract_sip(
+        {"CallSid": "CA1", "SipHeader_X-Correlation-Id": token, "SipHeader_X-Caller": "+15551234567"},
+        provider="twilio",
+    )
+    plugin.attach_sip(info)
+    assert plugin._state.sip_headers == {"X-Correlation-Id": token}

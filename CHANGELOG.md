@@ -5,7 +5,12 @@ All notable changes to `tuner-livekit-sdk` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.12] - 2026-10-19
+
+### Added
+
+- `tuner.telephony`: `extract_sip(payload, provider=) -> SipInfo` and `forward_to_sip(info, sip_uri=) -> Forward` in your existing carrier webhook carry Tuner's `X-Correlation-Id` onto the call into LiveKit (Twilio: `Forward.twiml` / `sip_uri`; Telnyx: `Forward.transfer` / `custom_headers`), so simulations behind a carrier still link. Built-in providers: `twilio`, `telnyx`; others plug in via `register_provider`.
+- `TunerPlugin.attach_sip(info, sip_call_id=, sip_headers=, recipient=)` overrides the SIP data captured from the participant.
 
 ## [0.1.11] - 2026-10-14
 

@@ -293,8 +293,13 @@ def to_create_call_request(
         general_meta.setdefault("sip_call_id_full", resolved_sip_call_id)
         payload["sip_call_id"] = resolved_sip_call_id
 
-    if state.correlation_id:
-        payload["sip_headers"] = {"X-Correlation-Id": state.correlation_id}
+    sip_headers = dict(state.sip_headers)
+    if state.correlation_id and not any(
+        k.lower() == "x-correlation-id" for k in sip_headers
+    ):
+        sip_headers["X-Correlation-Id"] = state.correlation_id
+    if sip_headers:
+        payload["sip_headers"] = sip_headers
 
     if state.shutdown_reason:
         payload["disconnection_reason"] = state.shutdown_reason

@@ -29,6 +29,7 @@ Drop it into your `entrypoint` and every session — transcript, tool calls, tim
 - [Trace view (OpenTelemetry)](#trace-view-opentelemetry)
 - [LangGraph / LangChain observability](#langgraph--langchain-observability)
 - [Simulation correlation (SIP)](#simulation-correlation-sip)
+- [A carrier in front of LiveKit](#a-carrier-in-front-of-livekit)
 - [Privacy & data handling](#privacy--data-handling)
 - [Requirements](#requirements)
 - [Support](#support)
@@ -325,7 +326,7 @@ This section covers the **SDK side only**. For LiveKit platform setup (SIP URI, 
 
 ### Requirements
 
-- `tuner-livekit-sdk` newer than 0.1.9 for `X-Correlation-Id` forwarding (`sip_call_id` capture needs `>= 0.1.5`).
+- `tuner-livekit-sdk` 0.1.11 or later for `X-Correlation-Id` forwarding, 0.1.12 or later for `tuner.telephony` (`sip_call_id` capture needs `>= 0.1.5`).
 - Your **inbound trunk** must map SIP X-headers to participant attributes: set `include_headers` to `SIP_X_HEADERS` (or `SIP_ALL_HEADERS`). LiveKit then exposes the header as the `sip.h.x-correlation-id` attribute.
 
 > **⚠️ Trunk setting:** the default, `SIP_NO_HEADERS`, maps no headers. The call still reports, but without the correlation header, and nothing warns you. See LiveKit's [SIP participant attributes](https://docs.livekit.io/reference/telephony/sip-participant/) docs.
@@ -342,6 +343,68 @@ Pass `sip_call_id=` only to override the captured value:
 TunerPlugin(session, ctx, sip_call_id="my-own-call-id")
 ```
 
+## A carrier in front of LiveKit
+
+If Tuner reaches your agent through a carrier such as Twilio (for example because your numbers live there), the carrier starts a new SIP call into LiveKit and does not copy Tuner's `X-Correlation-Id` header onto it. Without that header Tuner cannot link the call to its simulation.
+
+Add two calls in the webhook where you already send the call to LiveKit. Your server keeps its routing, signature checks and call control:
+
+| Step | API |
+|---|---|
+| Read | `extract_sip(payload, *, provider) -> SipInfo(sip_call_id, sip_headers, carrier_call_id, recipient)` |
+| Forward | `forward_to_sip(info, *, sip_uri) -> Forward` (`.twiml` / `.sip_uri` for Twilio, `.transfer` / `.custom_headers` for Telnyx) |
+| Attach (optional) | `plugin.attach_sip(info=None, *, sip_call_id=None, sip_headers=None, recipient=None)` |
+| Add a carrier | `register_provider(provider)` |
+
+```python
+from tuner.telephony import extract_sip, forward_to_sip
+
+# in your existing Twilio voice webhook
+info = extract_sip(await request.form(), provider="twilio")
+fwd = forward_to_sip(info, sip_uri="sip:agent@xxxx.sip.livekit.cloud")
+
+response = VoiceResponse()
+response.dial(answer_on_bridge=True).sip(fwd.sip_uri, username=..., password=...)
+# or, with no other options: return fwd.twiml
+```
+
+- `sip_uri` is the LiveKit SIP address your webhook already dials.
+- `fwd.sip_uri` is that address with Tuner's token attached (Twilio sends URI headers as SIP headers). On normal calls there is no token and it is returned unchanged, so you can call it on every call.
+- Your LiveKit inbound trunk must copy X-headers into participant attributes: `include_headers` set to `SIP_X_HEADERS`. `TunerPlugin` then reports the token automatically.
+
+Telnyx Call Control: pass the webhook JSON, then send `fwd.transfer` (`to` + `custom_headers`) to LiveKit:
+
+```python
+info = extract_sip(event, provider="telnyx")
+fwd = forward_to_sip(info, sip_uri="sip:agent@xxxx.sip.livekit.cloud")
+await telnyx_post(f"/calls/{call_control_id}/actions/transfer", {
+    **fwd.transfer, "sip_auth_username": ..., "sip_auth_password": ...,
+})
+```
+
+Outbound: Tuner links on the dialed `recipient`. Pass it to the worker (for example in the dispatch metadata) and report it with `TunerPlugin(..., recipient=...)` or `plugin.attach_sip(recipient=...)`. `extract_sip` also reads it from an outbound carrier webhook (`info.recipient`).
+
+`plugin.attach_sip(...)` overrides what the plugin captured from the SIP participant; explicit arguments win over `info`, a carrier call ID is ignored and a malformed `X-Correlation-Id` is dropped.
+
+Calling LiveKit directly, with no carrier in between? You need nothing from this section.
+
+Built-in providers: `twilio`, `telnyx`. To support another carrier, register a class with `name`, `extract(payload) -> SipInfo` and `forward_to_sip(info, sip_uri) -> Forward`:
+
+```python
+from tuner.telephony import Forward, SipInfo, register_provider
+
+class AcmeProvider:
+    name = "acme"
+
+    def extract(self, payload) -> SipInfo:
+        return SipInfo(sip_headers={"X-Correlation-Id": payload.get("correlation_id", "")})
+
+    def forward_to_sip(self, info: SipInfo, sip_uri: str) -> Forward:
+        return Forward(sip_uri=sip_uri, correlation_id=info.correlation_id or None)
+
+register_provider(AcmeProvider())
+```
+
 ## Privacy & data handling
 
 The plugin submits the following to the Tuner API for each call: the plain-text transcript, per-turn timing metadata (see [Data captured](#data-captured)), tool call names/arguments/results, token/character/audio usage counts, and any `extra_metadata` you configure. It does not access raw audio, video, or room recordings directly — recordings are only referenced by the URL your `recording_url_resolver` returns.
@@ -352,7 +415,7 @@ Use `CaptureConfig` (see [LangGraph / LangChain observability](#langgraph--langc
 
 - Python ≥ 3.10
 - `livekit-agents >= 1.4`
-- `tuner-livekit-sdk >= 0.1.5` for `sip_call_id`; newer than 0.1.9 for `X-Correlation-Id` forwarding (see [Simulation correlation (SIP)](#simulation-correlation-sip))
+- `tuner-livekit-sdk >= 0.1.5` for `sip_call_id`; 0.1.11 or later for `X-Correlation-Id` forwarding, 0.1.12 or later for `tuner.telephony` (see [Simulation correlation (SIP)](#simulation-correlation-sip))
 - `aiohttp >= 3.9`
 - `tuner-langchain >= 0.1.1` (installed automatically as a dependency; used by `wrap_graph()` / `wrap_chain()`)
 
