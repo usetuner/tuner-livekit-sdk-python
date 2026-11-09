@@ -443,10 +443,47 @@ uv run pytest -v
 
 ### Publishing to PyPI
 
+Releases are automated. [`.github/workflows/publish.yml`](.github/workflows/publish.yml)
+runs on every push to `main` (so on every merged PR) and publishes only when the
+version in `pyproject.toml` is not yet on PyPI. Ordinary merges are a no-op; a
+merge that bumps the version runs the tests, builds, uploads, tags `vX.Y.Z` and
+opens a GitHub release.
+
+To release: bump `version` in `pyproject.toml`, add the matching
+`CHANGELOG.md` entry, and merge the PR.
+
+#### One-time setup
+
+PyPI trusted publishing (OIDC) — no API token is stored in the repository:
+
+1. On PyPI: [Your projects](https://pypi.org/manage/projects/) → *Manage* on
+   `tuner-livekit-sdk` → *Publishing* → *GitHub Actions* tab, then *Add*:
+
+   | Field            | Value                      |
+   | ---------------- | -------------------------- |
+   | Repository owner | `usetuner`                 |
+   | Repository name  | `tuner-livekit-sdk-python` |
+   | Workflow name    | `publish.yml`              |
+   | Environment name | `pypi`                     |
+
+   The workflow field takes the bare filename, not the `.github/workflows/`
+   path.
+2. On GitHub: *Settings → Environments → New environment* → `pypi`, then under
+   *Deployment branches and tags* choose *Selected branches and tags* and add a
+   rule for `main`. PyPI's publisher has no branch field, so this is the only
+   place a branch restriction can live.
+
+A first run that fails with `invalid-publisher` means one of those four values
+disagrees with the workflow.
+
+#### Manual release (fallback)
+
 ```bash
-pip install build twine
-python -m build
-twine upload dist/*
+uv sync --dev
+rm -rf dist/ build/
+uv build
+uv run twine check dist/*
+uv run twine upload dist/*
 ```
 
 ## License
