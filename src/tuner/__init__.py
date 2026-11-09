@@ -12,6 +12,7 @@ Set env vars:
     TUNER_API_KEY, TUNER_WORKSPACE_ID, TUNER_AGENT_ID
 """
 
+from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any
 
 from .config import TunerConfig
@@ -19,7 +20,10 @@ from .config import TunerConfig
 if TYPE_CHECKING:
     from .plugin import TunerPlugin
 
-__version__ = "0.1.12"
+try:
+    __version__ = version("tuner-livekit-sdk")
+except PackageNotFoundError:
+    __version__ = "0.0.0+unknown"
 
 __all__ = ["TunerPlugin", "TunerConfig", "__version__"]
 
