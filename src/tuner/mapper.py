@@ -3,13 +3,17 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from livekit.agents import AgentSession
 
+from .kb_retrieval import insert_kb_retrievals
+
 if TYPE_CHECKING:
     from .collector import SessionState
     from .config import TunerConfig
+    from .kb_retrieval import KbRetrieval
 
 try:
     from tuner_langchain import TunerAccumulator
@@ -35,6 +39,7 @@ def map_history_to_segments(
     items: list[Any],
     session_start_ts: float = 0.0,
     lg_acc: "TunerAccumulator | None" = None,
+    kb_retrievals: "Sequence[KbRetrieval] | None" = None,
 ) -> list[dict]:
     """
     Map LiveKit ChatContext items to Tuner PublicTranscriptSegment dicts.
@@ -48,12 +53,15 @@ def map_history_to_segments(
                           timeline. FunctionCall / FunctionCallOutput items from
                           ChatContext are skipped — LangGraph already produced them
                           with richer timing data.
+        kb_retrievals:    Retrievals recorded with TunerPlugin.record_kb_retrieval.
+                          Each is placed right after its user turn.
 
     Roles produced:
       - user          → ChatMessage(role="user")
       - agent         → ChatMessage(role="assistant")
       - agent_function → FunctionCall (merged with FunctionCallOutput)
       - node_transition → LangGraph node transition (only when lg_acc provided)
+      - kb_retrieval   → recorded KB retrieval (only when kb_retrievals provided)
     """
     from livekit.agents.llm.chat_context import (
         ChatMessage,
@@ -108,6 +116,8 @@ def map_history_to_segments(
                     "transcript_confidence": item.transcript_confidence,
                 },
             }
+            if role == "user":
+                seg["id"] = item.id
             segments.append(seg)
 
         elif isinstance(item, (FunctionCall, FunctionCallOutput)):
@@ -153,6 +163,15 @@ def map_history_to_segments(
             segments.extend(segments_from_invocation(inv, session_start_ns))
         segments.sort(key=lambda s: s.get("start_ms", 0))
 
+    # After the sort: placement follows the turn link, not timestamps.
+    if kb_retrievals:
+        user_messages = [
+            i for i in items if isinstance(i, ChatMessage) and i.role == "user"
+        ]
+        segments = insert_kb_retrievals(
+            segments, kb_retrievals, user_messages, session_start_ts
+        )
+
     return segments
 
 
@@ -183,6 +202,7 @@ def to_create_call_request(
     config: "TunerConfig",
     ctx: Any,
     lg_acc: "TunerAccumulator | None" = None,
+    kb_retrievals: "Sequence[KbRetrieval] | None" = None,
 ) -> dict:
     """
     Build the Tuner CreateCallRequest payload from session state and history.
@@ -193,6 +213,7 @@ def to_create_call_request(
         config:        TunerConfig instance.
         ctx:           LiveKit JobContext.
         lg_acc:        Optional TunerAccumulator for LangGraph instrumentation.
+        kb_retrievals: Optional KB retrievals recorded during the session.
 
     Returns:
         Dict ready to POST to the Tuner API.
@@ -229,6 +250,7 @@ def to_create_call_request(
         history_items,
         session_start_ts=state.start_timestamp,
         lg_acc=lg_acc,
+        kb_retrievals=kb_retrievals,
     )
     plain_transcript = build_plain_transcript(history_items)
 
