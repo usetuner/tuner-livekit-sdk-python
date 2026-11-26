@@ -14,6 +14,7 @@ Drop it into your `entrypoint` and every session — transcript, tool calls, tim
 - **Zero-friction wiring** — one line after `AgentSession` creation; the plugin hooks itself into session lifecycle events.
 - **Rich per-turn timing** — STT/LLM/TTS latency, end-of-turn delay, and end-to-end latency captured per transcript segment.
 - **Tool call tracking** — function calls and their results are merged into the timeline with real timing data.
+- **KB retrievals (RAG)** — record the chunks your agent retrieved per turn, so Tuner's evals count them as a source.
 - **LangGraph / LangChain support** — via the bundled `tuner-langchain` package, capture node transitions and tool calls straight from your graph.
 - **SIP simulation correlation** — match Tuner-initiated simulation calls to your production SIP trunk.
 - **Cost calculation** — plug in your own pricing function; Tuner reports cost per call.
@@ -27,6 +28,7 @@ Drop it into your `entrypoint` and every session — transcript, tool calls, tim
 - [Options](#options)
 - [Data captured](#data-captured)
 - [Trace view (OpenTelemetry)](#trace-view-opentelemetry)
+- [KB retrievals (RAG)](#kb-retrievals-rag)
 - [LangGraph / LangChain observability](#langgraph--langchain-observability)
 - [Simulation correlation (SIP)](#simulation-correlation-sip)
 - [A carrier in front of LiveKit](#a-carrier-in-front-of-livekit)
@@ -75,6 +77,7 @@ That's it. The plugin listens to session events and submits call data to Tuner w
 | `TUNER_WORKSPACE_ID` | ✅ | Integer workspace ID |
 | `TUNER_AGENT_ID` | ✅ | Agent identifier from Tuner Agent Settings |
 | `TUNER_BASE_URL` | — | API base URL (default: `https://api.usetuner.ai`) |
+| `TUNER_CAPTURE_KB_CHUNK_TEXT` | — | `false` to send KB retrievals without chunk text (default: `true`). See [KB retrievals](#kb-retrievals-rag) |
 
 ### Credentials from code
 
@@ -222,7 +225,9 @@ Each item in `session.history` is mapped to a transcript segment (`role`, `text`
 
 All timing fields above are taken directly from LiveKit's own per-turn metrics (EOUMetrics, STT/LLM/TTS metrics) and passed through unchanged — the SDK does not recompute them.
 
-Tool calls (`agent_function` / `agent_result` roles) and, when LangGraph/LangChain instrumentation is enabled, `node_transition` segments are interleaved into the same timeline, sorted by `start_ms`.
+`user` segments also carry the item ID as a top-level `id`, which `kb_retrieval` segments point to.
+
+Tool calls (`agent_function` / `agent_result` roles) follow `session.history` order. When LangGraph/LangChain instrumentation is enabled, tool calls and `node_transition` segments come from the graph instead, and the whole timeline is sorted by `start_ms`. `kb_retrieval` segments are placed after that, right after the user turn they belong to (see [KB retrievals](#kb-retrievals-rag)).
 
 ## Trace view (OpenTelemetry)
 
@@ -313,6 +318,46 @@ wrapped_graph = plugin.wrap_graph(
     ),
 )
 ```
+
+## KB retrievals (RAG)
+
+Chunks you add to `turn_ctx` in `on_user_turn_completed` reach the LLM but never `session.history`, so Tuner would not see them, and the Hallucination eval could fail facts that came from your knowledge base. Pass them to `record_kb_retrieval` as well:
+
+```python
+from livekit.agents import Agent, llm
+from tuner import TunerPlugin
+
+
+class RagAgent(Agent):
+    def __init__(self, plugin: TunerPlugin) -> None:
+        super().__init__(instructions="You are a support agent.")
+        self.plugin = plugin
+
+    async def on_user_turn_completed(
+        self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
+    ) -> None:
+        query = new_message.text_content or ""
+        results = await my_vector_store.search(query, k=3)  # your retriever
+        chunks = [{"text": r.text, "source_id": r.id, "score": r.score} for r in results]
+
+        turn_ctx.add_message(
+            role="assistant",
+            content="Context:\n" + "\n".join(c["text"] for c in chunks),
+        )
+        self.plugin.record_kb_retrieval(new_message, chunks, query=query)
+
+
+plugin = TunerPlugin(session, ctx)
+await session.start(agent=RagAgent(plugin), room=ctx.room)
+```
+
+- `chunks` is a list of strings, or of dicts with `text` and optional `source_id` and `score`. Pass `[]` when the retrieval ran and found nothing.
+- `query` is optional. Several calls for one turn are fine; they are kept in call order.
+- The call only copies its inputs. It never changes `new_message` or `turn_ctx`, so what the LLM receives is the same with or without it.
+- It never raises. Invalid input logs a warning (IDs only) and is dropped.
+- Each retrieval is sent as a `kb_retrieval` segment right after its user turn, linked by `user_turn_id`. With preemptive generation, `session.history` can hold a copy of the user message with a different ID; the plugin then links to the history message with the same text and the nearest timestamp. If none matches, it logs a warning on the `tuner.mapper` logger and sends the retrieval with the original ID, and Tuner marks it as not linked to a turn.
+
+To send retrievals without the chunk text (only `source_id` and `score`), pass `capture_kb_chunk_text=False` or set `TUNER_CAPTURE_KB_CHUNK_TEXT=false`.
 
 ## Simulation correlation (SIP)
 
@@ -408,6 +453,8 @@ register_provider(AcmeProvider())
 ## Privacy & data handling
 
 The plugin submits the following to the Tuner API for each call: the plain-text transcript, per-turn timing metadata (see [Data captured](#data-captured)), tool call names/arguments/results, token/character/audio usage counts, and any `extra_metadata` you configure. It does not access raw audio, video, or room recordings directly — recordings are only referenced by the URL your `recording_url_resolver` returns.
+
+KB chunks passed to `record_kb_retrieval` are sent as `kb_retrieval` transcript segments, including their text and the optional `query`. Pass `capture_kb_chunk_text=False` (or set `TUNER_CAPTURE_KB_CHUNK_TEXT=false`) to send only `source_id` and `score`, marked `chunk_text_omitted`; the Hallucination eval then cannot use that content as a source. Nothing is captured unless you call `record_kb_retrieval`.
 
 Use `CaptureConfig` (see [LangGraph / LangChain observability](#langgraph--langchain-observability)) to exclude tool inputs or node instructions from LangGraph/LangChain traces, and `enabled=False` to disable submission entirely for local development or test environments.
 
