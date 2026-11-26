@@ -9,6 +9,20 @@ if TYPE_CHECKING:
 
 
 _DEFAULT_BASE_URL = "https://api.usetuner.ai"
+_TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"0", "false", "no", "off"}
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    value = raw.strip().lower()
+    if value in _TRUE:
+        return True
+    if value in _FALSE:
+        return False
+    raise ValueError(f"{name} must be true or false, got '{raw}'.")
 
 
 @dataclass
@@ -33,6 +47,8 @@ class TunerConfig:
     forward_traces: bool = True
     timeout_seconds: float = 30.0
     max_retries: int = 3
+    # Send chunk text from record_kb_retrieval. When False, only source_id/score are sent.
+    capture_kb_chunk_text: bool = True
 
     @classmethod
     def from_env(
@@ -53,6 +69,7 @@ class TunerConfig:
         forward_traces: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
+        capture_kb_chunk_text: bool | None = None,
     ) -> "TunerConfig":
         """
         Build config from keyword arguments, falling back to environment variables.
@@ -65,6 +82,8 @@ class TunerConfig:
         Optional env vars:
             TUNER_BASE_URL       - API base URL (default: https://api.usetuner.ai)
             AGENT_VERSION        - Version identifier attached to every call
+            TUNER_CAPTURE_KB_CHUNK_TEXT - "false" to send KB retrievals without chunk text
+                                   (default: true)
 
         Optional args:
             recipient            - Callee phone number or SIP URL (e.g. "+15551234567"
@@ -109,6 +128,12 @@ class TunerConfig:
             else os.environ.get("AGENT_VERSION")
         )
 
+        resolved_capture_kb_chunk_text = (
+            capture_kb_chunk_text
+            if capture_kb_chunk_text is not None
+            else _env_bool("TUNER_CAPTURE_KB_CHUNK_TEXT", True)
+        )
+
         return cls(
             api_key=resolved_api_key,
             workspace_id=workspace_id,
@@ -125,4 +150,5 @@ class TunerConfig:
             forward_traces=forward_traces,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
+            capture_kb_chunk_text=resolved_capture_kb_chunk_text,
         )

@@ -101,3 +101,36 @@ def test_direct_construction():
     config = TunerConfig(api_key="tr_api_x", workspace_id=5, agent_id="direct")
     assert config.api_key == "tr_api_x"
     assert config.workspace_id == 5
+
+
+def _base_env(monkeypatch):
+    monkeypatch.setenv("TUNER_API_KEY", "tr_api_test")
+    monkeypatch.setenv("TUNER_WORKSPACE_ID", "1")
+    monkeypatch.setenv("TUNER_AGENT_ID", "agent")
+
+
+def test_capture_kb_chunk_text_defaults_on(monkeypatch):
+    _base_env(monkeypatch)
+    monkeypatch.delenv("TUNER_CAPTURE_KB_CHUNK_TEXT", raising=False)
+    assert TunerConfig.from_env().capture_kb_chunk_text is True
+    assert TunerConfig(api_key="k", workspace_id=1, agent_id="a").capture_kb_chunk_text is True
+
+
+@pytest.mark.parametrize("value,expected", [("false", False), ("0", False), ("OFF", False), ("true", True), ("1", True)])
+def test_capture_kb_chunk_text_from_env(monkeypatch, value, expected):
+    _base_env(monkeypatch)
+    monkeypatch.setenv("TUNER_CAPTURE_KB_CHUNK_TEXT", value)
+    assert TunerConfig.from_env().capture_kb_chunk_text is expected
+
+
+def test_capture_kb_chunk_text_explicit_wins_over_env(monkeypatch):
+    _base_env(monkeypatch)
+    monkeypatch.setenv("TUNER_CAPTURE_KB_CHUNK_TEXT", "true")
+    assert TunerConfig.from_env(capture_kb_chunk_text=False).capture_kb_chunk_text is False
+
+
+def test_capture_kb_chunk_text_invalid_env_raises(monkeypatch):
+    _base_env(monkeypatch)
+    monkeypatch.setenv("TUNER_CAPTURE_KB_CHUNK_TEXT", "maybe")
+    with pytest.raises(ValueError, match="TUNER_CAPTURE_KB_CHUNK_TEXT"):
+        TunerConfig.from_env()
