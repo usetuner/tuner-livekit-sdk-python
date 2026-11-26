@@ -1,0 +1,117 @@
+{
+  "call_id": "AJ_spikeKbRetrieval01",
+  "call_type": "web_call",
+  "transcript_with_tool_calls": [
+    {
+      "role": "user",
+      "text": "What is your refund window?",
+      "start_ms": 2101,
+      "end_ms": 2301,
+      "metadata": {
+        "id": "item_ccaa6e4ddf21",
+        "interrupted": false,
+        "llm_node_ttft": null,
+        "tts_node_ttfb": null,
+        "stt_node_ttfb": 100,
+        "eou_delay": 200,
+        "e2e_latency": null,
+        "transcript_confidence": 1.0
+      },
+      "id": "item_ccaa6e4ddf21"
+    },
+    {
+      "role": "kb_retrieval",
+      "user_turn_id": "item_ccaa6e4ddf21",
+      "start_ms": 2341,
+      "query": "What is your refund window?",
+      "chunks": [
+        {
+          "text": "Refunds are available within 30 days of purchase for unused items.",
+          "source_id": "refund-policy#1",
+          "score": 0.218
+        },
+        {
+          "text": "Refunds are issued to the original payment method within 5 business days.",
+          "source_id": "refund-policy#2",
+          "score": 0.204
+        }
+      ]
+    },
+    {
+      "role": "agent",
+      "text": "Answer 1",
+      "start_ms": 2357,
+      "end_ms": 2360,
+      "metadata": {
+        "id": "item_c5c3a4cf2e8f",
+        "interrupted": false,
+        "llm_node_ttft": 52,
+        "tts_node_ttfb": null,
+        "stt_node_ttfb": null,
+        "eou_delay": null,
+        "e2e_latency": 56,
+        "transcript_confidence": null
+      }
+    },
+    {
+      "role": "user",
+      "text": "How long does express shipping take?",
+      "start_ms": 2465,
+      "end_ms": 2665,
+      "metadata": {
+        "id": "item_742d1b968e4a",
+        "interrupted": false,
+        "llm_node_ttft": null,
+        "tts_node_ttfb": null,
+        "stt_node_ttfb": 100,
+        "eou_delay": 200,
+        "e2e_latency": null,
+        "transcript_confidence": 1.0
+      },
+      "id": "item_742d1b968e4a"
+    },
+    {
+      "role": "kb_retrieval",
+      "user_turn_id": "item_742d1b968e4a",
+      "start_ms": 2705,
+      "query": "How long does express shipping take?",
+      "chunks": [
+        {
+          "text": "Standard shipping takes 3 to 7 business days within the country.",
+          "source_id": "shipping#1",
+          "score": 0.316
+        },
+        {
+          "text": "Express shipping costs 15 dollars and arrives in 1 to 2 business days.",
+          "source_id": "shipping#2",
+          "score": 0.283
+        }
+      ]
+    },
+    {
+      "role": "agent",
+      "text": "Answer 2",
+      "start_ms": 2719,
+      "end_ms": 2721,
+      "metadata": {
+        "id": "item_694ed818a928",
+        "interrupted": false,
+        "llm_node_ttft": 51,
+        "tts_node_ttfb": null,
+        "stt_node_ttfb": null,
+        "eou_delay": null,
+        "e2e_latency": 53,
+        "transcript_confidence": null
+      }
+    }
+  ],
+  "start_timestamp": 1795713107,
+  "end_timestamp": 1795713137,
+  "duration_ms": 30000,
+  "call_status": "ended",
+  "general_meta_data_raw": {
+    "livekit_job_id": "AJ_spikeKbRetrieval01",
+    "livekit_room_name": "spike-kb-room"
+  },
+  "transcript": "user: What is your refund window?\nagent: Answer 1\nuser: How long does express shipping take?\nagent: Answer 2"
+}
