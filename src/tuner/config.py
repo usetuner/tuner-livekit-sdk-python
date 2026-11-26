@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Awaitable, Callable
@@ -8,12 +9,15 @@ if TYPE_CHECKING:
     from livekit.agents.metrics import UsageSummary
 
 
+logger = logging.getLogger("tuner")
+
 _DEFAULT_BASE_URL = "https://api.usetuner.ai"
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off"}
 
 
-def _env_bool(name: str, default: bool) -> bool:
+def _env_bool(name: str, default: bool, invalid: bool) -> bool:
+    """Parse a boolean env var; an unrecognised value logs a warning and yields ``invalid``."""
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return default
@@ -22,7 +26,8 @@ def _env_bool(name: str, default: bool) -> bool:
         return True
     if value in _FALSE:
         return False
-    raise ValueError(f"{name} must be true or false, got '{raw}'.")
+    logger.warning("%s must be true or false; using %s", name, invalid)
+    return invalid
 
 
 @dataclass
@@ -131,7 +136,7 @@ class TunerConfig:
         resolved_capture_kb_chunk_text = (
             capture_kb_chunk_text
             if capture_kb_chunk_text is not None
-            else _env_bool("TUNER_CAPTURE_KB_CHUNK_TEXT", True)
+            else _env_bool("TUNER_CAPTURE_KB_CHUNK_TEXT", True, invalid=False)
         )
 
         return cls(

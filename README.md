@@ -454,7 +454,7 @@ register_provider(AcmeProvider())
 
 The plugin submits the following to the Tuner API for each call: the plain-text transcript, per-turn timing metadata (see [Data captured](#data-captured)), tool call names/arguments/results, token/character/audio usage counts, and any `extra_metadata` you configure. It does not access raw audio, video, or room recordings directly — recordings are only referenced by the URL your `recording_url_resolver` returns.
 
-KB chunks passed to `record_kb_retrieval` are sent as `kb_retrieval` transcript segments, including their text and the optional `query`. Pass `capture_kb_chunk_text=False` (or set `TUNER_CAPTURE_KB_CHUNK_TEXT=false`) to send only `source_id` and `score`, marked `chunk_text_omitted`; the Hallucination eval then cannot use that content as a source. Nothing is captured unless you call `record_kb_retrieval`.
+KB chunks passed to `record_kb_retrieval` are sent as `kb_retrieval` transcript segments, including their text and the optional `query`. Pass `capture_kb_chunk_text=False` (or set `TUNER_CAPTURE_KB_CHUNK_TEXT=false`) to send only `source_id` and `score`, marked `chunk_text_omitted`; the Hallucination eval then cannot use that content as a source. An unrecognised `TUNER_CAPTURE_KB_CHUNK_TEXT` value logs a warning and is treated as `false`, so chunk text is left out while the call is still sent. Nothing is captured unless you call `record_kb_retrieval`.
 
 Use `CaptureConfig` (see [LangGraph / LangChain observability](#langgraph--langchain-observability)) to exclude tool inputs or node instructions from LangGraph/LangChain traces, and `enabled=False` to disable submission entirely for local development or test environments.
 

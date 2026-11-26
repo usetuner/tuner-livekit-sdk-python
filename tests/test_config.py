@@ -129,8 +129,9 @@ def test_capture_kb_chunk_text_explicit_wins_over_env(monkeypatch):
     assert TunerConfig.from_env(capture_kb_chunk_text=False).capture_kb_chunk_text is False
 
 
-def test_capture_kb_chunk_text_invalid_env_raises(monkeypatch):
+def test_capture_kb_chunk_text_invalid_env_warns_and_omits_text(monkeypatch, caplog):
     _base_env(monkeypatch)
     monkeypatch.setenv("TUNER_CAPTURE_KB_CHUNK_TEXT", "maybe")
-    with pytest.raises(ValueError, match="TUNER_CAPTURE_KB_CHUNK_TEXT"):
-        TunerConfig.from_env()
+    config = TunerConfig.from_env()
+    assert config.capture_kb_chunk_text is False
+    assert "TUNER_CAPTURE_KB_CHUNK_TEXT" in caplog.text
