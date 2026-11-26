@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.2.0] - Unreleased
 
+**Requires a Tuner backend that supports `kb_retrieval` segments.** Until then the backend rejects the whole call with a 422, so do not call `record_kb_retrieval` before that.
+
 ### Added
 
-- `TunerPlugin.record_kb_retrieval(new_message, chunks, query=None)` records the KB chunks retrieved for a user turn. Each is sent as a `kb_retrieval` transcript segment right after its user turn, linked by `user_turn_id`, so Tuner's evals can use KB content as a source. Requires a Tuner API that accepts `kb_retrieval` segments.
+- `TunerPlugin.record_kb_retrieval(new_message, chunks, query=None)` records the KB chunks retrieved for a user turn. Each is sent as a `kb_retrieval` transcript segment right after its user turn, linked by `user_turn_id`, so Tuner's evals can use KB content as a source.
 - `capture_kb_chunk_text` option (env `TUNER_CAPTURE_KB_CHUNK_TEXT`, default on). When off, retrievals are sent with `chunk_text_omitted: true` and only `source_id` and `score`.
 - `user` transcript segments carry the item ID as a top-level `id` (it stays in `metadata.id` too).
 
