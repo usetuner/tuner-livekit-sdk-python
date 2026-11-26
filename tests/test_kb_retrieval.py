@@ -143,6 +143,40 @@ def test_preemptive_id_mismatch_falls_back_to_same_text_nearest_timestamp():
     assert resolve_user_turn_id(r, [yes_turn1, yes_turn2, other]) == "item_hist_2"
 
 
+def test_earlier_identical_turn_outside_window_is_not_matched(caplog):
+    # turn 2's "yes" never reached history (e.g. interrupted); turn 1 said "yes" too
+    yes_turn1 = user_msg("yes", T0 + 1, id="item_hist_1")
+    items = [yes_turn1, agent_msg("Great.", T0 + 2)]
+    lost = user_msg("yes", T0 + 30, id="item_lost")
+
+    assert resolve_user_turn_id(record(lost, ["x"]), [yes_turn1]) is None
+    with caplog.at_level(logging.WARNING, logger="tuner.mapper"):
+        segments = map_history_to_segments(items, T0, kb_retrievals=[record(lost, ["x"])])
+    assert segments[-1]["user_turn_id"] == "item_lost"
+    assert "item_lost" in caplog.text
+
+
+def test_exact_id_claimed_turn_is_skipped_by_fallback():
+    # turn 1 is linked by id; a lost "yes" 2 s later must not steal it
+    yes_turn1 = user_msg("yes", T0 + 1, id="item_hist_1")
+    items = [yes_turn1, agent_msg("Great.", T0 + 2)]
+    linked = record(yes_turn1, ["a"])
+    lost = record(user_msg("yes", T0 + 3, id="item_lost"), ["b"])
+
+    segments = map_history_to_segments(items, T0, kb_retrievals=[linked, lost])
+
+    kb = [s for s in segments if s["role"] == "kb_retrieval"]
+    assert [s["user_turn_id"] for s in kb] == ["item_hist_1", "item_lost"]
+    assert segments[1]["chunks"] == [{"text": "a"}]
+    assert segments[-1]["chunks"] == [{"text": "b"}]
+
+
+def test_two_candidates_in_window_is_ambiguous():
+    a = user_msg("yes", T0 + 1, id="item_a")
+    b = user_msg("yes", T0 + 2, id="item_b")
+    assert resolve_user_turn_id(record(user_msg("yes", T0 + 1.5, id="item_new"), ["x"]), [a, b]) is None
+
+
 def test_unresolvable_returns_none():
     r = record(user_msg("never said", T0, id="item_gone"), ["x"])
     assert resolve_user_turn_id(r, two_turn_history()[::2]) is None

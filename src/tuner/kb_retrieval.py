@@ -13,6 +13,10 @@ from typing import Any
 
 logger = logging.getLogger("tuner.mapper")
 
+# livekit-agents creates the preemptive user message when the final transcript arrives and
+# new_message at end of turn, so they differ by the endpointing delay (default max 3.0 s).
+PREEMPTIVE_MATCH_WINDOW_S = 5.0
+
 
 class InvalidKbRetrieval(ValueError):
     """Raised for unusable record_kb_retrieval input. Messages never include input values."""
@@ -88,21 +92,31 @@ def build_kb_retrieval(
     )
 
 
-def resolve_user_turn_id(retrieval: KbRetrieval, user_messages: Sequence[Any]) -> str | None:
+def resolve_user_turn_id(
+    retrieval: KbRetrieval,
+    user_messages: Sequence[Any],
+    claimed_ids: frozenset[str] = frozenset(),
+) -> str | None:
     """Id of the history user message this retrieval belongs to, or None.
 
     With preemptive generation, history can keep a copy of the user message with a
-    different id but identical text; fall back to the same text at the nearest time.
+    different id but identical text. Fall back to that copy only when exactly one
+    unclaimed message has the same text within PREEMPTIVE_MATCH_WINDOW_S.
     """
     if any(m.id == retrieval.user_turn_id for m in user_messages):
         return retrieval.user_turn_id
     if not retrieval.user_text:
         return None
-    candidates = [m for m in user_messages if m.text_content == retrieval.user_text]
-    if not candidates:
-        return None
     at = retrieval.user_created_at if retrieval.user_created_at is not None else retrieval.recorded_at
-    return min(candidates, key=lambda m: abs((m.created_at or 0.0) - at)).id
+    candidates = [
+        m
+        for m in user_messages
+        if m.text_content == retrieval.user_text
+        and m.id not in claimed_ids
+        and m.created_at is not None
+        and abs(m.created_at - at) <= PREEMPTIVE_MATCH_WINDOW_S
+    ]
+    return candidates[0].id if len(candidates) == 1 else None
 
 
 def _to_segment(retrieval: KbRetrieval, user_turn_id: str, session_start_ts: float) -> dict[str, Any]:
@@ -130,14 +144,18 @@ def insert_kb_retrievals(
     The turn link decides placement; timestamps never move a retrieval to another turn.
     Unlinked retrievals go at the end with their original id (the backend flags them).
     """
+    history_ids = {m.id for m in user_messages}
+    claimed = frozenset(r.user_turn_id for r in retrievals if r.user_turn_id in history_ids)
     by_turn: dict[str, list[dict]] = {}
     unlinked: list[dict] = []
     for r in retrievals:
-        turn_id = resolve_user_turn_id(r, user_messages)
+        turn_id = resolve_user_turn_id(r, user_messages, claimed)
         if turn_id is None:
             logger.warning(
-                "kb_retrieval for user turn %s matches no user message in history; sending it unlinked",
+                "kb_retrieval for user turn %s matches no single user message in history "
+                "(same text within %.1fs); sending it unlinked",
                 r.user_turn_id,
+                PREEMPTIVE_MATCH_WINDOW_S,
             )
             unlinked.append(_to_segment(r, r.user_turn_id, session_start_ts))
         else:

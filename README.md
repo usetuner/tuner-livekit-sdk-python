@@ -355,7 +355,7 @@ await session.start(agent=RagAgent(plugin), room=ctx.room)
 - `query` is optional. Several calls for one turn are fine; they are kept in call order.
 - The call only copies its inputs. It never changes `new_message` or `turn_ctx`, so what the LLM receives is the same with or without it.
 - It never raises. Invalid input logs a warning (IDs only) and is dropped.
-- Each retrieval is sent as a `kb_retrieval` segment right after its user turn, linked by `user_turn_id`. With preemptive generation, `session.history` can hold a copy of the user message with a different ID; the plugin then links to the history message with the same text and the nearest timestamp. If none matches, it logs a warning on the `tuner.mapper` logger and sends the retrieval with the original ID, and Tuner marks it as not linked to a turn.
+- Each retrieval is sent as a `kb_retrieval` segment right after its user turn, linked by `user_turn_id`. With preemptive generation, `session.history` can hold a copy of the user message with a different ID; the plugin then links to the one history message with the same text created within 5 seconds of `new_message` (not already linked by ID). If there is no such message, or more than one, it logs a warning on the `tuner.mapper` logger and sends the retrieval with the original ID, and Tuner marks it as not linked to a turn.
 
 To send retrievals without the chunk text (only `source_id` and `score`), pass `capture_kb_chunk_text=False` or set `TUNER_CAPTURE_KB_CHUNK_TEXT=false`.
 
