@@ -3,16 +3,21 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Callable
 
 from .client import submit_call
 from .collector import DisconnectReason, SessionState
 from .config import TunerConfig
+from .kb_retrieval import InvalidKbRetrieval, KbRetrieval, build_kb_retrieval
 from .tracing import setup_call_tracing
 from .mapper import to_create_call_request
 
 if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
+    from collections.abc import Mapping, Sequence
+
+    from livekit.agents.llm import ChatMessage
 
     from .telephony import SipInfo
     from livekit.agents.metrics import UsageSummary
@@ -58,6 +63,14 @@ async def _default_recording_url_resolver(room_name: str, job_id: str) -> str:
     return _RECORDING_URL_PLACEHOLDER
 
 
+def _message_id(message: Any) -> str | None:
+    try:
+        value = getattr(message, "id", None)
+    except Exception:
+        return None
+    return value if isinstance(value, str) else None
+
+
 class TunerPlugin:
     """
     Automatically ingests LiveKit agent session data into the Tuner observability API.
@@ -89,6 +102,7 @@ class TunerPlugin:
             sip_call_id=sip_id,              # optional override; auto-captured from sip.callIDFull
             recipient="+15551234567",        # callee phone number or SIP URL (optional)
             extra_metadata={"env": "prod"},
+            capture_kb_chunk_text=False,     # send KB retrievals without chunk text
             max_retries=3,
             timeout_seconds=30,
         )
@@ -114,12 +128,14 @@ class TunerPlugin:
         forward_traces: bool = True,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
+        capture_kb_chunk_text: bool | None = None,
     ) -> None:
         self._session = session
         self._ctx = ctx
         self._state = SessionState()
         self._config: TunerConfig | None = None
         self._lg_accumulator: TunerAccumulator | None = None
+        self._kb_retrievals: list[KbRetrieval] = []
 
         if not enabled:
             logger.debug("TunerPlugin is disabled; no data will be sent to Tuner")
@@ -142,6 +158,7 @@ class TunerPlugin:
                 forward_traces=forward_traces,
                 timeout_seconds=timeout_seconds,
                 max_retries=max_retries,
+                capture_kb_chunk_text=capture_kb_chunk_text,
             )
         except ValueError as exc:
             logger.error("TunerPlugin is misconfigured and will not send data: %s", exc)
@@ -246,6 +263,40 @@ class TunerPlugin:
             updates["recipient"] = recipient
         if updates:
             self._config = dataclasses.replace(self._config, **updates)
+
+    def record_kb_retrieval(
+        self,
+        new_message: "ChatMessage",
+        chunks: "Sequence[str | Mapping[str, Any]]",
+        query: str | None = None,
+    ) -> None:
+        """Record the KB chunks retrieved for a user turn, so Tuner's evals can see them.
+
+        Call it from ``Agent.on_user_turn_completed`` with the ``new_message`` you got.
+        ``chunks`` is a list of strings or of dicts with ``text`` and optional
+        ``source_id`` and ``score``; ``[]`` means the retrieval ran and found nothing.
+        It only copies its inputs: it never changes ``new_message`` or ``turn_ctx``,
+        so the LLM input is unchanged. It never raises; bad input is logged and dropped.
+        """
+        if self._config is None:
+            return
+        try:
+            self._kb_retrievals.append(
+                build_kb_retrieval(
+                    new_message,
+                    chunks,
+                    query,
+                    capture_text=self._config.capture_kb_chunk_text,
+                    recorded_at=time.time(),
+                )
+            )
+        except Exception as exc:
+            reason = str(exc) if isinstance(exc, InvalidKbRetrieval) else type(exc).__name__
+            logger.warning(
+                "record_kb_retrieval: dropped retrieval for user turn %s: %s",
+                _message_id(new_message),
+                reason,
+            )
 
     def _capture_sip_participant(self, participant) -> None:
         attributes = dict(getattr(participant, "attributes", {}) or {})
@@ -368,6 +419,7 @@ class TunerPlugin:
                 self._config,
                 self._ctx,
                 lg_acc=self._lg_accumulator,
+                kb_retrievals=list(self._kb_retrievals),
             )
         except Exception:
             logger.exception("Failed to build Tuner payload; skipping submission")
